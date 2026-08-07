@@ -1,0 +1,6 @@
+{
+  "name": "SPIHEAD",
+  "description": "SPIHEAD - AI-Powered CRM integrated with Microsoft 365 Outlook, Teams & Calendar, lead scoring, and pipeline optimization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

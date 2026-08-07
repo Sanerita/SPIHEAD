@@ -1,0 +1,234 @@
+import express from "express";
+import path from "path";
+import { createServer as createViteServer } from "vite";
+import { GoogleGenAI, Type } from "@google/genai";
+
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
+
+  app.use(express.json());
+
+  // Helper to initialize Gemini client lazily per request
+  const getGeminiClient = () => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is missing. Please configure GEMINI_API_KEY in the Secrets panel.");
+    }
+    return new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        },
+      },
+    });
+  };
+
+  // Health / Gemini API Status Endpoint
+  app.get("/api/gemini/status", (req, res) => {
+    const hasKey = !!process.env.GEMINI_API_KEY;
+    res.json({
+      status: "ok",
+      configured: hasKey,
+      model: "gemini-3.6-flash",
+      message: hasKey
+        ? "Gemini API is fully configured and ready."
+        : "GEMINI_API_KEY is missing in server environment.",
+    });
+  });
+
+  // 1. Analyze Lead Endpoint
+  app.post("/api/gemini/analyze-lead", async (req, res) => {
+    try {
+      const ai = getGeminiClient();
+      const { lead } = req.body;
+
+      if (!lead || !lead.name) {
+        return res.status(400).json({ error: "Invalid lead payload" });
+      }
+
+      const prompt = `Perform a comprehensive B2B sales lead assessment for:
+Name: ${lead.name}
+Company: ${lead.company}
+Industry: ${lead.industry || 'Technology'}
+Budget: $${(lead.budget || 0).toLocaleString()} USD
+Current Stage: ${lead.status || 'New'}
+Engagement Rating: ${lead.engagement || 1}/5
+Urgency: ${lead.urgency ? 'High Urgency' : 'Standard'}
+Email Replies: ${lead.replyCount || 0}
+Discovery Notes: ${lead.notes || 'None provided'}
+
+Provide a rigorous AI assessment evaluating deal probability, key growth drivers, deal risk factors, and actionable next steps.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: "You are an executive enterprise sales strategist and CRM analyst. Provide structured, high-value actionable sales intelligence.",
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              recommendedScore: {
+                type: Type.NUMBER,
+                description: "Recommended lead warmth score from 0 to 100",
+              },
+              conversionProbability: {
+                type: Type.STRING,
+                description: "High, Medium, or Low",
+              },
+              executiveSummary: {
+                type: Type.STRING,
+                description: "Brief 2-sentence executive summary for the sales rep",
+              },
+              growthDrivers: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "Key positive signals driving this deal forward",
+              },
+              riskFactors: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "Potential deal risks or objections",
+              },
+              recommendedNextAction: {
+                type: Type.STRING,
+                description: "Specific tactical step the sales rep should take next",
+              },
+            },
+            required: [
+              "recommendedScore",
+              "conversionProbability",
+              "executiveSummary",
+              "growthDrivers",
+              "riskFactors",
+              "recommendedNextAction",
+            ],
+          },
+        },
+      });
+
+      const jsonText = response.text ? response.text.trim() : "{}";
+      const parsed = JSON.parse(jsonText);
+      res.json({ success: true, analysis: parsed });
+    } catch (err: any) {
+      console.error("Error in /api/gemini/analyze-lead:", err);
+      res.status(500).json({
+        success: false,
+        error: err.message || "Failed to analyze lead with Gemini API",
+      });
+    }
+  });
+
+  // 2. Generate Sales Email Endpoint
+  app.post("/api/gemini/generate-email", async (req, res) => {
+    try {
+      const ai = getGeminiClient();
+      const { lead, emailType, customPrompt, senderName } = req.body;
+
+      const prompt = `Compose a tailored sales email for:
+Recipient: ${lead?.name || 'Prospect'} (${lead?.company || 'Company'})
+Industry: ${lead?.industry || 'Technology'}
+Budget: $${(lead?.budget || 0).toLocaleString()}
+Email Purpose / Type: ${emailType || 'Follow-Up'}
+Custom Context: ${customPrompt || 'Express enthusiasm and propose a 15-minute discovery call.'}
+Sender Name: ${senderName || 'Sales Executive'}
+
+Generate a professional, compelling, subject line and email body.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: "You are an expert sales communication strategist. Craft high-converting, concise B2B emails.",
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              subject: { type: Type.STRING },
+              body: { type: Type.STRING },
+            },
+            required: ["subject", "body"],
+          },
+        },
+      });
+
+      const jsonText = response.text ? response.text.trim() : "{}";
+      const parsed = JSON.parse(jsonText);
+      res.json({ success: true, email: parsed });
+    } catch (err: any) {
+      console.error("Error in /api/gemini/generate-email:", err);
+      res.status(500).json({
+        success: false,
+        error: err.message || "Failed to generate email with Gemini API",
+      });
+    }
+  });
+
+  // 3. Meeting Prep Brief Endpoint
+  app.post("/api/gemini/meeting-brief", async (req, res) => {
+    try {
+      const ai = getGeminiClient();
+      const { lead, meetingTitle } = req.body;
+
+      const prompt = `Prepare a Microsoft Teams meeting prep brief for:
+Meeting Title: ${meetingTitle || 'Client Discovery Call'}
+Lead Name: ${lead?.name || 'Client'}
+Company: ${lead?.company || 'Organization'}
+Budget: $${(lead?.budget || 0).toLocaleString()} USD
+Notes: ${lead?.notes || 'No discovery notes yet.'}
+
+Provide meeting agenda, key discovery questions, and potential objection handlers.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: "You are an executive sales coach preparing reps for client meetings.",
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              agenda: { type: Type.ARRAY, items: { type: Type.STRING } },
+              discoveryQuestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+              objectionHandling: { type: Type.ARRAY, items: { type: Type.STRING } },
+            },
+            required: ["agenda", "discoveryQuestions", "objectionHandling"],
+          },
+        },
+      });
+
+      const jsonText = response.text ? response.text.trim() : "{}";
+      const parsed = JSON.parse(jsonText);
+      res.json({ success: true, brief: parsed });
+    } catch (err: any) {
+      console.error("Error in /api/gemini/meeting-brief:", err);
+      res.status(500).json({
+        success: false,
+        error: err.message || "Failed to generate meeting brief with Gemini API",
+      });
+    }
+  });
+
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  });
+}
+
+startServer();

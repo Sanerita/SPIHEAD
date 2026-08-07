@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+:root {
+  --brand-primary-navy: #12113D;
+  --brand-accent-navy: #0A0923;
+  --brand-luxury-gold: #DCAE3E;
+  --brand-highlight-gold: #E8C466;
+}
+
+@theme {
+  --color-navy-50: #f0f0ff;
+  --color-navy-100: #e0e0fa;
+  --color-navy-200: #c7c7f0;
+  --color-navy-300: #a0a0e0;
+  --color-navy-400: #7878d0;
+  --color-navy-500: var(--brand-primary-navy);
+  --color-navy-600: var(--brand-accent-navy);
+  --color-navy-700: var(--brand-accent-navy);
+  --color-navy-800: var(--brand-accent-navy);
+  --color-navy-900: var(--brand-primary-navy);
+  --color-navy-950: var(--brand-accent-navy);
+
+  --color-gold-50: #fff9e6;
+  --color-gold-100: #ffefb8;
+  --color-gold-200: #ffe58a;
+  --color-gold-300: var(--brand-highlight-gold);
+  --color-gold-400: var(--brand-luxury-gold);
+  --color-gold-500: var(--brand-luxury-gold);
+  --color-gold-600: var(--brand-luxury-gold);
+  --color-gold-700: #966902;
+  --color-gold-800: #7e5200;
+  --color-gold-900: #663b00;
+}
+
+@layer base {
+  body {
+    background-color: #f8fafc;
+    color: #0f172a;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  }
+}
