@@ -1,6 +1,7 @@
 import React from 'react';
 import { Lead, Meeting, EmailMessage, LeadStatus } from '../types/crm';
 import { LeadEnergyGauge } from '../components/LeadEnergyGauge';
+import { NextBestActionCard } from '../components/NextBestActionCard';
 import { generateAIAssessmentText } from '../lib/aiScoringEngine';
 import { 
   ArrowLeft, 
@@ -129,6 +130,18 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
         {/* Left Column: AI Energy Analysis & Pipeline Status */}
         <div className="lg:col-span-2 space-y-6">
           
+          {/* AI Next Best Action Engine Component */}
+          <NextBestActionCard 
+            lead={lead} 
+            activities={[]} 
+            emails={leadEmails} 
+            meetings={leadMeetings} 
+            onOpenEmailModal={(l, subj, body) => {
+              if (onOpenEmailModal) onOpenEmailModal(l);
+            }} 
+            onOpenScheduleModal={onOpenScheduleModal} 
+          />
+
           {/* AI Energy Score Breakdown */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -140,17 +153,6 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
             </div>
 
             <LeadEnergyGauge score={lead.score} breakdown={lead.scoreBreakdown} showBreakdown={true} />
-
-            {/* AI Next Best Action Card */}
-            <div className="bg-amber-50/60 border border-amber-200/80 rounded-xl p-4 space-y-2">
-              <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
-                <Sparkles className="h-4 w-4 text-amber-600" />
-                AI Recommended Action
-              </div>
-              <p className="text-xs text-amber-900 leading-relaxed font-medium">
-                {aiRecommendation}
-              </p>
-            </div>
           </div>
 
           {/* Microsoft 365 Outlook Email Log */}

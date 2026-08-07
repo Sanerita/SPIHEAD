@@ -4,6 +4,7 @@ import { StatsCards } from '../components/StatsCards';
 import { LeadsTable } from '../components/LeadsTable';
 import { PipelineBoard } from '../components/PipelineBoard';
 import { RecentActivity } from '../components/RecentActivity';
+import { NextBestActionCard } from '../components/NextBestActionCard';
 import { m365Service } from '../lib/m365Service';
 import { 
   Plus, 
@@ -381,6 +382,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           })}
         </div>
       </div>
+
+      {/* Featured AI Next Best Action Engine Recommendation */}
+      {hotLeads.length > 0 && (
+        <NextBestActionCard
+          lead={hotLeads[0]}
+          activities={activities}
+          emails={[]}
+          meetings={meetings}
+          onOpenEmailModal={onOpenEmailModal}
+          onOpenScheduleModal={onOpenScheduleModal}
+        />
+      )}
 
       {/* Hot Energy Leads Urgent Action Strip */}
       {hotLeads.length > 0 && (

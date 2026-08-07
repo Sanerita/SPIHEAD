@@ -211,6 +211,123 @@ Provide meeting agenda, key discovery questions, and potential objection handler
     }
   });
 
+  // 4. Next Best Action Engine Endpoint
+  app.post("/api/gemini/next-best-action", async (req, res) => {
+    try {
+      const ai = getGeminiClient();
+      const { lead, activities, emails, meetings } = req.body;
+
+      if (!lead || !lead.name) {
+        return res.status(400).json({ error: "Invalid lead payload" });
+      }
+
+      const activitiesSummary = Array.isArray(activities) && activities.length > 0
+        ? activities.map((a: any) => `- [${a.type}] ${a.message}`).join("\n")
+        : "No recent activities recorded.";
+
+      const emailsSummary = Array.isArray(emails) && emails.length > 0
+        ? emails.map((e: any) => `- Subject: "${e.subject}" | Body preview: "${(e.body || '').substring(0, 100)}..."`).join("\n")
+        : "No recent email logs.";
+
+      const meetingsSummary = Array.isArray(meetings) && meetings.length > 0
+        ? meetings.map((m: any) => `- [${m.status}] ${m.title} on ${m.date} at ${m.time}`).join("\n")
+        : "No upcoming or past meetings.";
+
+      const prompt = `Analyze the complete B2B sales lead history and calculate the single Next Best Action for the sales rep:
+
+LEAD DETAILS:
+Name: ${lead.name}
+Company: ${lead.company}
+Industry: ${lead.industry || 'Technology'}
+Budget: $${(lead.budget || 0).toLocaleString()} USD
+Pipeline Stage: ${lead.status || 'New'}
+Lead Energy Score: ${lead.score || 50}/100
+Engagement Rating: ${lead.engagement || 1}/5
+Urgency Flag: ${lead.urgency ? 'Yes (High Urgency)' : 'No'}
+Discovery / Sales Notes: ${lead.notes || 'None'}
+
+RECENT ACTIVITIES:
+${activitiesSummary}
+
+RECENT EMAILS:
+${emailsSummary}
+
+MEETINGS:
+${meetingsSummary}
+
+Goal: Provide the single highest-value Next Best Action for the sales rep. Examples include:
+- "Send formal proposal now - engagement peaked and budget is approved"
+- "Pause outreach - decision maker on leave, follow up in 2 weeks"
+- "Schedule product demo - competitor evaluation mentioned"
+- "Executive escalation - multi-stakeholder approval needed for $100k+ deal"
+- "Re-engage cold lead - send ROI case study"
+
+Return structured JSON containing actionTitle, category, confidenceScore (number 0-100), urgency, rationale, suggestedMessage, and keyTriggers.`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.6-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: "You are an elite AI Sales Director and Next Best Action Engine. Analyze CRM signals, timing, engagement, and deal risks to recommend precise, high-converting next actions with confidence scores.",
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              actionTitle: {
+                type: Type.STRING,
+                description: "Clear, punchy next best action title (e.g., 'Send proposal now - engagement peaked')",
+              },
+              category: {
+                type: Type.STRING,
+                description: "Category: 'Send Proposal', 'Schedule Demo', 'Pause Outreach', 'Executive Escalation', 'Contract Close', or 'Follow Up'",
+              },
+              confidenceScore: {
+                type: Type.NUMBER,
+                description: "AI confidence percentage between 0 and 100",
+              },
+              urgency: {
+                type: Type.STRING,
+                description: "Urgency: 'Immediate', 'Today', 'This Week', or 'Monitor'",
+              },
+              rationale: {
+                type: Type.STRING,
+                description: "1-2 sentence logical breakdown explaining why Gemini recommends this action right now",
+              },
+              suggestedMessage: {
+                type: Type.STRING,
+                description: "Ready-to-use email/phone message snippet or script for the sales rep",
+              },
+              keyTriggers: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "3-4 detected CRM signals or triggers that justified this recommendation",
+              },
+            },
+            required: [
+              "actionTitle",
+              "category",
+              "confidenceScore",
+              "urgency",
+              "rationale",
+              "suggestedMessage",
+              "keyTriggers",
+            ],
+          },
+        },
+      });
+
+      const jsonText = response.text ? response.text.trim() : "{}";
+      const parsed = JSON.parse(jsonText);
+      res.json({ success: true, recommendation: parsed });
+    } catch (err: any) {
+      console.error("Error in /api/gemini/next-best-action:", err);
+      res.status(500).json({
+        success: false,
+        error: err.message || "Failed to generate Next Best Action with Gemini API",
+      });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

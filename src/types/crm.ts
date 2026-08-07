@@ -89,6 +89,16 @@ export interface Activity {
   leadName?: string;
 }
 
+export interface NextBestActionRecommendation {
+  actionTitle: string;
+  category: 'Send Proposal' | 'Schedule Demo' | 'Pause Outreach' | 'Executive Escalation' | 'Contract Close' | 'Follow Up' | string;
+  confidenceScore: number; // 0 to 100
+  urgency: 'Immediate' | 'Today' | 'This Week' | 'Monitor' | string;
+  rationale: string;
+  suggestedMessage: string;
+  keyTriggers: string[];
+}
+
 export interface EmailMessage {
   id: string;
   leadId: string;
