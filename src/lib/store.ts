@@ -520,6 +520,13 @@ export class CRMStore {
   }
 
   private loadFromStorage() {
+    const isCleanedForProd = localStorage.getItem('spihead_prod_cleaned_v2');
+    if (!isCleanedForProd) {
+      localStorage.setItem('spihead_prod_cleaned_v2', 'true');
+      this.clearAllData();
+      return;
+    }
+
     const savedLeads = localStorage.getItem('spihead_crm_leads') || localStorage.getItem('albatross_crm_leads');
     const savedMeetings = localStorage.getItem('spihead_crm_meetings') || localStorage.getItem('albatross_crm_meetings');
     const savedActivities = localStorage.getItem('spihead_crm_activities') || localStorage.getItem('albatross_crm_activities');
@@ -528,55 +535,48 @@ export class CRMStore {
     if (savedLeads !== null) {
       try {
         const parsed = JSON.parse(savedLeads);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Merge missing INITIAL_LEADS so new default industry sectors appear
-          const existingIds = new Set(parsed.map((l: Lead) => l.id));
-          const missingDefaults = INITIAL_LEADS.filter((initLead) => !existingIds.has(initLead.id));
-          this.leads = [...parsed, ...missingDefaults];
-        } else {
-          this.leads = [...INITIAL_LEADS];
-        }
+        this.leads = Array.isArray(parsed) ? parsed : [];
       } catch (e) {
-        this.leads = [...INITIAL_LEADS];
+        this.leads = [];
       }
     } else {
-      this.leads = [...INITIAL_LEADS];
+      this.leads = [];
     }
     this.saveLeads();
 
     if (savedMeetings !== null) {
       try {
         const parsed = JSON.parse(savedMeetings);
-        this.meetings = Array.isArray(parsed) && parsed.length > 0 ? parsed : [...INITIAL_MEETINGS];
+        this.meetings = Array.isArray(parsed) ? parsed : [];
       } catch (e) {
-        this.meetings = [...INITIAL_MEETINGS];
+        this.meetings = [];
       }
     } else {
-      this.meetings = [...INITIAL_MEETINGS];
+      this.meetings = [];
     }
     this.saveMeetings();
 
     if (savedActivities !== null) {
       try {
         const parsed = JSON.parse(savedActivities);
-        this.activities = Array.isArray(parsed) && parsed.length > 0 ? parsed : [...INITIAL_ACTIVITIES];
+        this.activities = Array.isArray(parsed) ? parsed : [];
       } catch (e) {
-        this.activities = [...INITIAL_ACTIVITIES];
+        this.activities = [];
       }
     } else {
-      this.activities = [...INITIAL_ACTIVITIES];
+      this.activities = [];
     }
     this.saveActivities();
 
     if (savedEmails !== null) {
       try {
         const parsed = JSON.parse(savedEmails);
-        this.emails = Array.isArray(parsed) && parsed.length > 0 ? parsed : [...INITIAL_EMAILS];
+        this.emails = Array.isArray(parsed) ? parsed : [];
       } catch (e) {
-        this.emails = [...INITIAL_EMAILS];
+        this.emails = [];
       }
     } else {
-      this.emails = [...INITIAL_EMAILS];
+      this.emails = [];
     }
     this.saveEmails();
   }
@@ -836,6 +836,14 @@ export class CRMStore {
     this.saveMeetings();
     this.saveActivities();
     this.saveEmails();
+
+    // Reset M365 account counters to 0
+    const account = m365Service.getAccount();
+    account.syncedContactsCount = 0;
+    account.syncedEmailsCount = 0;
+    account.syncedEventsCount = 0;
+    m365Service.saveAccount(account);
+
     this.notify();
   }
 
@@ -848,6 +856,14 @@ export class CRMStore {
     this.saveMeetings();
     this.saveActivities();
     this.saveEmails();
+
+    // Restore M365 account counters to match sample counts
+    const account = m365Service.getAccount();
+    account.syncedContactsCount = INITIAL_LEADS.length;
+    account.syncedEmailsCount = INITIAL_EMAILS.length;
+    account.syncedEventsCount = INITIAL_MEETINGS.length;
+    m365Service.saveAccount(account);
+
     this.notify();
   }
 

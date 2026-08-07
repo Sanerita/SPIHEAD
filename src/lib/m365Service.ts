@@ -8,9 +8,9 @@ const DEFAULT_M365_ACCOUNT: M365Account = {
   tenantId: '72f988bf-86f1-41af-91ab-2d7cd011db47',
   tenantName: 'SPIHEAD M365 Enterprise Tenant',
   subscriptionType: 'Microsoft 365 Business Premium',
-  syncedContactsCount: 14,
-  syncedEmailsCount: 38,
-  syncedEventsCount: 9,
+  syncedContactsCount: 0,
+  syncedEmailsCount: 0,
+  syncedEventsCount: 0,
   lastSyncedAt: new Date().toISOString(),
   scopes: [
     'User.Read',
