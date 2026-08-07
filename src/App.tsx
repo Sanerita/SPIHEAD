@@ -284,9 +284,9 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900 antialiased selection:bg-gold-400 selection:text-navy-950">
+    <div className="min-h-screen bg-slate-100 flex flex-col lg:flex-row font-sans text-slate-900 antialiased selection:bg-gold-400 selection:text-navy-950">
       
-      {/* Navigation Header */}
+      {/* Navigation Sidebar */}
       <Navbar
         currentView={currentView}
         setCurrentView={(view) => {
@@ -294,15 +294,17 @@ export function App() {
           setCurrentView(view);
         }}
         onOpenM365Hub={() => setCurrentView('m365')}
+        onSyncAllM365={handleSyncAllM365}
       />
 
-      {/* Main View Area */}
-      <main className="flex-1 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8">
-        {renderCurrentView()}
-      </main>
+      {/* Main View & Footer Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+        <main className="flex-1 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8">
+          {renderCurrentView()}
+        </main>
 
-      {/* Footer */}
-      <Footer />
+        <Footer />
+      </div>
 
       {/* Toast Notification Alert Banner */}
       {toastMessage && (
