@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Lead, EmailMessage } from '../types/crm';
 import { m365Service } from '../lib/m365Service';
+import { sanitizeInput } from '../lib/authService';
 import { X, Send, Mail, Layers, Sparkles, CheckCircle2 } from 'lucide-react';
 
 interface SendEmailModalProps {
@@ -66,14 +67,17 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
     e.preventDefault();
     if (!subject || !body) return;
 
-    await m365Service.sendOutlookEmail(lead, subject, body, template);
+    const cleanSubject = sanitizeInput(subject);
+    const cleanBody = sanitizeInput(body);
+
+    await m365Service.sendOutlookEmail(lead, cleanSubject, cleanBody, template);
 
     onSubmit({
       leadId: lead.id,
       leadName: lead.name,
       leadEmail: lead.email,
-      subject,
-      body,
+      subject: cleanSubject,
+      body: cleanBody,
       templateUsed: template,
     });
 

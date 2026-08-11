@@ -1,5 +1,18 @@
 import { AppUser, UserRole, SecurityAuditLog, SecuritySettings } from '../types/crm';
 
+/**
+ * Secure Input Sanitizer to prevent XSS script injection across CRM forms
+ */
+export function sanitizeInput(input: string): string {
+  if (!input) return '';
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 const DEFAULT_USER: AppUser = {
   id: 'usr_001',
   email: 'sanelisiwe.sileku@spihead.com',

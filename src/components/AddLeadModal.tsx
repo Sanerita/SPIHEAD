@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lead, LeadStatus, STANDARD_INDUSTRIES } from '../types/crm';
+import { sanitizeInput } from '../lib/authService';
 import { X, UserPlus, Building2, Mail, Phone, DollarSign, Layers, Sparkles } from 'lucide-react';
 
 interface AddLeadModalProps {
@@ -27,16 +28,16 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
     if (!name || !email || !company) return;
 
     onSubmit({
-      name,
-      email,
-      phone,
-      company,
+      name: sanitizeInput(name),
+      email: sanitizeInput(email),
+      phone: sanitizeInput(phone),
+      company: sanitizeInput(company),
       budget: Number(budget),
       status,
       urgency,
       engagement: Number(engagement),
       replyCount: 1,
-      notes,
+      notes: sanitizeInput(notes),
       industry,
       m365Synced: true,
       tags: ['New Lead', industry],

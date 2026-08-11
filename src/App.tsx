@@ -86,6 +86,31 @@ export function App() {
     };
   }, []);
 
+  // Session Inactivity Auto-Lock Monitor for Enterprise Security
+  useEffect(() => {
+    if (!isAuthenticated || isLocked) return;
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const settings = authService.getSecuritySettings();
+    const timeoutMs = (settings.sessionTimeoutMinutes || 15) * 60 * 1000;
+
+    const resetInactivityTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        authService.lockSession();
+      }, timeoutMs);
+    };
+
+    const events = ['mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+    events.forEach((evt) => window.addEventListener(evt, resetInactivityTimer, { passive: true }));
+    resetInactivityTimer();
+
+    return () => {
+      clearTimeout(timeoutId);
+      events.forEach((evt) => window.removeEventListener(evt, resetInactivityTimer));
+    };
+  }, [isAuthenticated, isLocked]);
+
   const handleStatusChange = (leadId: string, newStatus: LeadStatus) => {
     crmStore.updateLeadStatus(leadId, newStatus);
     showToast(`Lead status updated to "${newStatus}"`);

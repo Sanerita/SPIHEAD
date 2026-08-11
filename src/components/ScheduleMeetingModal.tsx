@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Lead, Meeting } from '../types/crm';
+import { sanitizeInput } from '../lib/authService';
 import { X, Calendar, Video, Clock, MapPin, Layers, CheckCircle2 } from 'lucide-react';
 
 interface ScheduleMeetingModalProps {
@@ -43,13 +44,13 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
       leadId: lead?.id || 'lead-custom',
       leadName: `${lead?.name || 'Client'} (${lead?.company || 'Organization'})`,
       leadEmail: lead?.email || '',
-      title,
+      title: sanitizeInput(title),
       date,
       time,
       durationMinutes: Number(durationMinutes),
       location: isTeamsMeeting ? 'Microsoft Teams Video Meeting' : 'In-Person / Phone Call',
       isTeamsMeeting,
-      notes,
+      notes: sanitizeInput(notes),
       status: 'Scheduled',
     });
 
