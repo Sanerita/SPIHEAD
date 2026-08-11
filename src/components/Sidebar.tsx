@@ -18,13 +18,16 @@ import {
   LogOut,
   ShieldCheck,
   TrendingUp,
-  Lock
+  Lock,
+  Building2
 } from 'lucide-react';
 import { m365Service } from '../lib/m365Service';
 import { crmStore } from '../lib/store';
 import { authService } from '../lib/authService';
 import { subscriptionService } from '../lib/subscriptionService';
+import { companyService } from '../lib/companyService';
 import { UpgradePlanModal } from './UpgradePlanModal';
+import { BusinessCustomizerModal } from './BusinessCustomizerModal';
 import { M365Account } from '../types/crm';
 
 interface SidebarProps {
@@ -49,14 +52,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [m365Account, setM365Account] = useState<M365Account>(m365Service.getAccount());
   const [isSyncing, setIsSyncing] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [isBizModalOpen, setIsBizModalOpen] = useState(false);
   const [subCaps, setSubCaps] = useState(subscriptionService.getCapabilities());
+  const [companyProfile, setCompanyProfile] = useState(companyService.getProfile());
   const currentUser = authService.getCurrentUser();
 
   useEffect(() => {
-    const unsub = subscriptionService.subscribe(() => {
+    const unsubSub = subscriptionService.subscribe(() => {
       setSubCaps(subscriptionService.getCapabilities());
     });
-    return () => unsub();
+    const unsubComp = companyService.subscribe(() => {
+      setCompanyProfile(companyService.getProfile());
+    });
+    return () => {
+      unsubSub();
+      unsubComp();
+    };
   }, []);
 
   // Live stats for badges
@@ -355,6 +366,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ))}
         </div>
 
+        {/* Business Customization Widget (When Expanded) */}
+        {!isCollapsed && (
+          <div className="mx-3 mb-2 p-3 rounded-xl bg-gradient-to-r from-navy-950 to-slate-900 border border-gold-500/30 space-y-2">
+            <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Building2 className="h-3.5 w-3.5 text-gold-400 shrink-0" />
+                <span className="font-extrabold text-white truncate">{companyProfile.companyName}</span>
+              </div>
+            </div>
+
+            <p className="text-[10px] text-navy-200 truncate">
+              {companyProfile.industry}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setIsBizModalOpen(true)}
+              className="w-full py-1.5 rounded-lg bg-navy-800 hover:bg-navy-700 text-gold-400 border border-navy-600 font-extrabold text-[10px] tracking-wide flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs"
+            >
+              <Sparkles className="h-3 w-3 text-gold-400" />
+              <span>Adapt to My Business</span>
+            </button>
+          </div>
+        )}
+
         {/* Subscription Plan Status Card Widget (When Expanded) */}
         {!isCollapsed && (
           <div className="mx-3 mb-3 p-3 rounded-xl bg-navy-950/90 border border-gold-500/20 space-y-2 relative overflow-hidden">
@@ -478,6 +514,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <UpgradePlanModal
         isOpen={isUpgradeModalOpen}
         onClose={() => setIsUpgradeModalOpen(false)}
+      />
+
+      <BusinessCustomizerModal
+        isOpen={isBizModalOpen}
+        onClose={() => setIsBizModalOpen(false)}
       />
     </>
   );

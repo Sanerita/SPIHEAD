@@ -136,13 +136,14 @@ export interface M365Account {
   avatarUrl?: string;
 }
 
-export type UserRole = 'Admin' | 'Sales Manager' | 'Sales Rep' | 'Auditor';
+export type UserRole = 'Owner' | 'Admin' | 'Sales Manager' | 'Sales Rep' | 'Auditor';
 
 export interface AppUser {
   id: string;
   email: string;
   name: string;
   role: UserRole;
+  authRole?: UserRole;
   avatarUrl?: string;
   mfaEnabled: boolean;
   mfaSecret?: string;

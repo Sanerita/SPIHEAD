@@ -1,6 +1,7 @@
 import { Lead, Meeting, Activity, EmailMessage, M365Account, LeadStatus } from '../types/crm';
 import { calculateLeadEnergyScore } from './aiScoringEngine';
 import { m365Service } from './m365Service';
+import { companyService } from './companyService';
 
 const INITIAL_LEADS: Lead[] = [
   {
@@ -863,6 +864,44 @@ export class CRMStore {
     account.syncedEmailsCount = INITIAL_EMAILS.length;
     account.syncedEventsCount = INITIAL_MEETINGS.length;
     m365Service.saveAccount(account);
+
+    this.notify();
+  }
+
+  adaptToCompanyProfile(industry: string, companyName?: string): void {
+    const profile = companyService.adaptToIndustry(industry, companyName);
+    const sampleLeads = companyService.getSampleLeadsForIndustry(industry);
+
+    if (sampleLeads && sampleLeads.length > 0) {
+      const formattedLeads: Lead[] = sampleLeads.map((sl, idx) => ({
+        id: `lead-ind-${Date.now()}-${idx}`,
+        name: sl.name,
+        email: sl.email,
+        phone: sl.phone,
+        company: sl.company,
+        budget: sl.budget,
+        status: sl.status,
+        score: sl.score || 85,
+        urgency: sl.urgency || false,
+        engagement: sl.engagement || 4,
+        replyCount: sl.replyCount || 3,
+        notes: sl.notes,
+        createdAt: new Date(Date.now() - idx * 24 * 3600 * 1000).toISOString(),
+        updatedAt: new Date().toISOString(),
+        lastContact: new Date(Date.now() - 12 * 3600 * 1000).toISOString(),
+        m365Synced: true,
+        industry: sl.industry || profile.industry,
+        tags: sl.tags || [profile.industry, 'Customized']
+      }));
+
+      this.leads = formattedLeads;
+      this.saveLeads();
+    }
+
+    this.addActivity({
+      type: 'status_changed',
+      message: `Workspace adapted to ${profile.companyName}'s exact business (${profile.industry}). Custom terminology: "${profile.leadTermSingular}/${profile.leadTermPlural}" with ${profile.customPipelineStages.length} deal stages.`
+    });
 
     this.notify();
   }

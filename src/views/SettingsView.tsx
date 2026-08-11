@@ -35,14 +35,17 @@ import {
   Link as LinkIcon,
   Cpu,
   AlertCircle,
-  Copy
+  Copy,
+  Building2,
+  Briefcase
 } from 'lucide-react';
 import { crmStore } from '../lib/store';
 import { themeService, ThemeColors } from '../lib/theme';
 import { m365Service } from '../lib/m365Service';
 import { authService } from '../lib/authService';
+import { companyService } from '../lib/companyService';
 import { SecurityAuditLogTable } from '../components/SecurityAuditLogTable';
-import { M365Account, UserRole } from '../types/crm';
+import { M365Account, UserRole, STANDARD_INDUSTRIES } from '../types/crm';
 
 interface SettingsViewProps {
   onClearAllData: () => void;
@@ -58,12 +61,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onSyncM365,
 }) => {
   const [activeTab, setActiveTab] = useState<
-    'general' | 'm365' | 'ai' | 'notifications' | 'security' | 'database'
-  >('general');
+    'business' | 'general' | 'm365' | 'ai' | 'notifications' | 'security' | 'database'
+  >('business');
+
+  // Business Adaptation Profile State
+  const companyProf = companyService.getProfile();
+  const [bizCompanyName, setBizCompanyName] = useState(companyProf.companyName);
+  const [bizIndustry, setBizIndustry] = useState(companyProf.industry);
+  const [bizOfferings, setBizOfferings] = useState(companyProf.productsAndServices);
+  const [bizTargetAudience, setBizTargetAudience] = useState(companyProf.targetAudience);
+  const [bizLeadSingular, setBizLeadSingular] = useState(companyProf.leadTermSingular);
+  const [bizLeadPlural, setBizLeadPlural] = useState(companyProf.leadTermPlural);
+  const [bizCurrency, setBizCurrency] = useState(companyProf.currency);
+  const [isAdaptingBiz, setIsAdaptingBiz] = useState(false);
 
   // General Settings State
-  const [companyName, setCompanyName] = useState('SPIHEAD Enterprise');
-  const [currency, setCurrency] = useState('USD');
+  const [companyName, setCompanyName] = useState(companyProf.companyName || 'SPIHEAD Enterprise');
+  const [currency, setCurrency] = useState(companyProf.currency || 'USD');
   const [timezone, setTimezone] = useState('UTC-05:00 (Eastern Time)');
   const [fiscalYearStart, setFiscalYearStart] = useState('January');
   const [hotThreshold, setHotThreshold] = useState<number>(75);
@@ -402,6 +416,60 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     reader.readAsText(file);
   };
 
+  const userRole = currentUser?.authRole || currentUser?.role || 'Admin';
+  const isOwnerOrAdmin = userRole === 'Owner' || userRole === 'Admin';
+
+  if (!isOwnerOrAdmin) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto py-12">
+        <div className="bg-white p-8 rounded-3xl border border-rose-200 shadow-xl space-y-6 text-center">
+          <div className="mx-auto w-16 h-16 rounded-full bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-600">
+            <Lock className="h-8 w-8" />
+          </div>
+
+          <div className="space-y-2 max-w-md mx-auto">
+            <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-[10px] font-black uppercase tracking-wider border border-rose-200">
+              Access Restricted
+            </span>
+            <h2 className="text-2xl font-black text-navy-900 tracking-tight">
+              Admin or Owner Permission Required
+            </h2>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              SettingsView capabilities and system configurations are strictly restricted to users with <strong className="text-navy-900">Admin</strong> or <strong className="text-navy-900">Owner</strong> permissions.
+            </p>
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 inline-block text-left max-w-sm w-full space-y-2">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Your Active Profile</div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-700">{currentUser?.name || 'Current User'}</span>
+              <span className="px-2.5 py-0.5 rounded-md bg-navy-900 text-gold-400 font-extrabold text-[11px] font-mono">
+                {userRole}
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-400">
+              Email: {currentUser?.email || 'N/A'} | AuthRole: {currentUser?.authRole || 'Not Set'}
+            </div>
+          </div>
+
+          <div className="pt-2 flex justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                authService.updateUserRole('Admin');
+                if (showToast) showToast('Role updated to Admin', 'success');
+              }}
+              className="px-5 py-2.5 bg-navy-900 hover:bg-navy-800 text-gold-400 text-xs font-extrabold rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <ShieldCheck className="h-4 w-4 text-gold-400" />
+              Switch to Admin Persona (Test Access)
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       
@@ -444,6 +512,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* Navigation Tabs */}
       <div className="bg-navy-950 p-2 rounded-2xl border border-navy-800 flex items-center gap-2 overflow-x-auto shadow-md">
+        <button
+          onClick={() => setActiveTab('business')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'business'
+              ? 'bg-gold-500 text-navy-950 shadow-md font-black'
+              : 'text-navy-300 hover:text-white hover:bg-navy-900'
+          }`}
+        >
+          <Building2 className="h-4 w-4" /> Business & Industry Adaptation
+        </button>
+
         <button
           onClick={() => setActiveTab('general')}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
@@ -510,6 +589,207 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <Database className="h-4 w-4" /> System Data & Storage
         </button>
       </div>
+
+      {/* Tab 0: Business & Industry Adaptation Engine */}
+      {activeTab === 'business' && (
+        <div className="space-y-6">
+          {/* Active Business Profile Card */}
+          <div className="bg-gradient-to-br from-navy-900 via-navy-950 to-slate-900 p-6 rounded-3xl border border-navy-700 text-white shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+              <Building2 className="h-48 w-48 text-gold-400" />
+            </div>
+
+            <div className="relative z-10 space-y-4">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div>
+                  <span className="px-3 py-1 rounded-full bg-gold-500/20 text-gold-300 border border-gold-500/30 text-[10px] font-black uppercase tracking-wider">
+                    Exact Business Customization Engine
+                  </span>
+                  <h2 className="text-2xl font-black text-white tracking-tight mt-1.5 flex items-center gap-2">
+                    {bizCompanyName || 'Your Enterprise Workspace'}
+                  </h2>
+                  <p className="text-xs text-navy-200 mt-1">
+                    Catering CRM terminology, AI Lead Energy scoring, pipeline stages, and Outlook/Teams automation to your exact industry.
+                  </p>
+                </div>
+
+                <div className="bg-navy-800/80 p-3.5 rounded-2xl border border-navy-700 text-right">
+                  <div className="text-[10px] text-navy-300 uppercase font-extrabold tracking-wider">Active Industry</div>
+                  <div className="text-sm font-black text-gold-400 mt-0.5">{bizIndustry}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+                <div className="p-3 rounded-xl bg-navy-800/50 border border-navy-700/60">
+                  <div className="text-[10px] font-bold text-navy-300 uppercase">Custom Lead Terms</div>
+                  <div className="text-xs font-black text-white mt-1">
+                    {bizLeadSingular} / {bizLeadPlural}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-navy-800/50 border border-navy-700/60">
+                  <div className="text-[10px] font-bold text-navy-300 uppercase">Core Products</div>
+                  <div className="text-xs font-black text-white mt-1 truncate">
+                    {bizOfferings || 'Custom Solutions'}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-navy-800/50 border border-navy-700/60">
+                  <div className="text-[10px] font-bold text-navy-300 uppercase">Target Audience</div>
+                  <div className="text-xs font-black text-white mt-1 truncate">
+                    {bizTargetAudience || 'Decision Makers'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Form to Customize Business Details */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-navy-900">
+                <Briefcase className="h-5 w-5 text-gold-500" />
+                <h3 className="font-extrabold text-base">Configure Organization Profile & Industry Preset</h3>
+              </div>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setIsAdaptingBiz(true);
+                setTimeout(() => {
+                  companyService.saveProfile({
+                    companyName: bizCompanyName,
+                    industry: bizIndustry,
+                    productsAndServices: bizOfferings,
+                    targetAudience: bizTargetAudience,
+                    leadTermSingular: bizLeadSingular,
+                    leadTermPlural: bizLeadPlural,
+                    currency: bizCurrency
+                  });
+                  crmStore.adaptToCompanyProfile(bizIndustry, bizCompanyName);
+                  setIsAdaptingBiz(false);
+                  if (showToast) showToast(`Workspace and AI scoring adapted for ${bizCompanyName} (${bizIndustry})!`, 'success');
+                }, 500);
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Company / Organization Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={bizCompanyName}
+                    onChange={(e) => setBizCompanyName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Primary Industry & Business Sector</label>
+                  <select
+                    value={bizIndustry}
+                    onChange={(e) => setBizIndustry(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"
+                  >
+                    {STANDARD_INDUSTRIES.map((ind) => (
+                      <option key={ind} value={ind}>
+                        {ind}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Core Products / Services Offerings</label>
+                  <input
+                    type="text"
+                    value={bizOfferings}
+                    onChange={(e) => setBizOfferings(e.target.value)}
+                    placeholder="e.g. Enterprise Cloud CRM, Solar Microgrids, Medical Software"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Ideal Buyer / Target Audience</label>
+                  <input
+                    type="text"
+                    value={bizTargetAudience}
+                    onChange={(e) => setBizTargetAudience(e.target.value)}
+                    placeholder="e.g. CTOs, Facility Managers, Hospital Directors"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Singular Term</label>
+                  <input
+                    type="text"
+                    value={bizLeadSingular}
+                    onChange={(e) => setBizLeadSingular(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg font-semibold bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Plural Term</label>
+                  <input
+                    type="text"
+                    value={bizLeadPlural}
+                    onChange={(e) => setBizLeadPlural(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg font-semibold bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Billing Currency</label>
+                  <select
+                    value={bizCurrency}
+                    onChange={(e) => setBizCurrency(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg font-semibold bg-white"
+                  >
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="GBP">GBP (£)</option>
+                    <option value="ZAR">ZAR (R)</option>
+                    <option value="CAD">CAD ($)</option>
+                    <option value="AUD">AUD ($)</option>
+                    <option value="JPY">JPY (¥)</option>
+                    <option value="INR">INR (₹)</option>
+                    <option value="AED">AED</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={isAdaptingBiz}
+                  className="px-6 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-gold-400 font-extrabold text-xs flex items-center gap-2 shadow-md transition-all"
+                >
+                  {isAdaptingBiz ? (
+                    <>
+                      <Sparkles className="h-4 w-4 animate-spin text-gold-400" />
+                      Adapting Workspace to {bizIndustry}...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 text-gold-400" />
+                      Adapt CRM & Load Industry Data
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Tab 1: Organization & Regional Preferences */}
       {activeTab === 'general' && (

@@ -12,6 +12,7 @@ interface ServerUser {
   name: string;
   passwordHash: string;
   role: string;
+  authRole: string;
   mfaEnabled: boolean;
   pinCode: string;
   lastLoginAt: string;
@@ -29,7 +30,8 @@ const SEED_USERS: ServerUser[] = [
     email: "sanelisiwe.sileku@spihead.com",
     name: "Sanelisiwe Sileku",
     passwordHash: crypto.createHash("sha256").update("Password123!").digest("hex"),
-    role: "Admin",
+    role: "Owner",
+    authRole: "Owner",
     mfaEnabled: true,
     pinCode: "1234",
     lastLoginAt: new Date().toISOString(),
@@ -45,6 +47,7 @@ const SEED_USERS: ServerUser[] = [
     name: "SPIHEAD Administrator",
     passwordHash: crypto.createHash("sha256").update("Password123!").digest("hex"),
     role: "Admin",
+    authRole: "Admin",
     mfaEnabled: true,
     pinCode: "1234",
     lastLoginAt: new Date().toISOString(),
@@ -60,6 +63,7 @@ const SEED_USERS: ServerUser[] = [
     name: "Demo Sales Executive",
     passwordHash: crypto.createHash("sha256").update("Password123!").digest("hex"),
     role: "Sales Rep",
+    authRole: "Sales Rep",
     mfaEnabled: true,
     pinCode: "1234",
     lastLoginAt: new Date().toISOString(),
@@ -106,12 +110,14 @@ async function startServer() {
       const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
       const userId = "usr_" + Date.now().toString(36) + "_" + crypto.randomBytes(3).toString("hex");
 
+      const assignedRole = role || "Admin";
       const newUser: ServerUser = {
         id: userId,
         email: cleanEmail,
         name: fullName?.trim() || "New User",
         passwordHash,
-        role: role || "Admin",
+        role: assignedRole,
+        authRole: assignedRole,
         mfaEnabled: true,
         pinCode: "1234",
         lastLoginAt: new Date().toISOString(),
@@ -166,12 +172,14 @@ async function startServer() {
         // Auto-provision user account for new valid login attempts
         const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
         const userId = "usr_" + Date.now().toString(36);
+        const loginRole = role || "Admin";
         user = {
           id: userId,
           email: cleanEmail,
           name: cleanEmail.split("@")[0].replace(".", " ").replace(/\b\w/g, (l) => l.toUpperCase()),
           passwordHash,
-          role: role || "Admin",
+          role: loginRole,
+          authRole: loginRole,
           mfaEnabled: true,
           pinCode: "1234",
           lastLoginAt: new Date().toISOString(),
@@ -197,6 +205,7 @@ async function startServer() {
       user.lastLoginAt = new Date().toISOString();
       if (role) {
         user.role = role;
+        user.authRole = role;
       }
 
       // Issue Session Token

@@ -28,8 +28,10 @@ import {
 import { authService } from '../lib/authService';
 import { subscriptionService, SAAS_PLANS } from '../lib/subscriptionService';
 import { currencyService } from '../lib/currencyService';
+import { companyService } from '../lib/companyService';
+import { crmStore } from '../lib/store';
 import { CurrencySelector } from '../components/CurrencySelector';
-import { UserRole } from '../types/crm';
+import { UserRole, STANDARD_INDUSTRIES } from '../types/crm';
 import { PlanTier } from '../types/subscription';
 
 interface SignUpViewProps {
@@ -52,6 +54,7 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
   const [fullName, setFullName] = useState('');
   const [workEmail, setWorkEmail] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [selectedIndustry, setSelectedIndustry] = useState<string>('Enterprise Software & SaaS');
   const [companySize, setCompanySize] = useState('11-50');
   const [rolePersona, setRolePersona] = useState<UserRole>('Admin');
   const [selectedPlan, setSelectedPlan] = useState<PlanTier>(initialPlan);
@@ -158,6 +161,13 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
     try {
       // Upgrade plan in subscription service
       subscriptionService.upgradeOrChangePlan(selectedPlan, 'annual');
+
+      // Save company profile and adapt CRM data to company's exact business & industry
+      companyService.saveProfile({
+        companyName: companyName.trim() || 'My Company',
+        industry: selectedIndustry
+      });
+      crmStore.adaptToCompanyProfile(selectedIndustry, companyName.trim() || 'My Company');
 
       // Register user in backend auth service
       await authService.register({
@@ -450,7 +460,7 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
                   </div>
                 </div>
 
-                {/* Company Name & Team Size Grid */}
+                {/* Company Name & Industry Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="block text-xs font-bold text-slate-300">Company / Workspace Name</label>
@@ -471,6 +481,30 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
                     </p>
                   </div>
 
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-slate-300">Industry & Sector Adaptation</label>
+                    <div className="relative">
+                      <select
+                        value={selectedIndustry}
+                        onChange={(e) => setSelectedIndustry(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-gold-400 appearance-none cursor-pointer"
+                      >
+                        {STANDARD_INDUSTRIES.map((ind) => (
+                          <option key={ind} value={ind}>
+                            {ind}
+                          </option>
+                        ))}
+                      </select>
+                      <Building className="h-4 w-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                    <p className="text-[10px] text-gold-400/90 font-mono pl-1">
+                      Adapts pipeline, AI scoring & lead terms
+                    </p>
+                  </div>
+                </div>
+
+                {/* Company Size & Role Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="block text-xs font-bold text-slate-300">Company Size</label>
                     <div className="relative">

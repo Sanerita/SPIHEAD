@@ -401,6 +401,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <span className="px-3 py-0.5 rounded-full text-xs font-extrabold bg-navy-800 text-gold-300 border border-gold-400/30 shadow-xs">
                 {jobTitle}
               </span>
+              {authService.getCurrentUser()?.authRole && (
+                <span className="px-3 py-0.5 rounded-full text-[11px] font-black bg-gold-500 text-navy-950 uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                  <ShieldCheck className="h-3.5 w-3.5" /> authRole: {authService.getCurrentUser()?.authRole}
+                </span>
+              )}
             </div>
 
             <p className="text-xs text-navy-200 font-mono tracking-wide">{userPrincipalName}</p>

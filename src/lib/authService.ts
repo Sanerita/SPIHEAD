@@ -17,7 +17,8 @@ const DEFAULT_USER: AppUser = {
   id: 'usr_001',
   email: 'sanelisiwe.sileku@spihead.com',
   name: 'Sanelisiwe Sileku',
-  role: 'Admin',
+  role: 'Owner',
+  authRole: 'Owner',
   mfaEnabled: true,
   pinCode: '1234',
   lastLoginAt: new Date().toISOString(),
@@ -104,6 +105,9 @@ class AuthService {
 
       if (savedAuth && savedToken) {
         this.currentUser = JSON.parse(savedAuth);
+        if (this.currentUser && !this.currentUser.authRole) {
+          this.currentUser.authRole = this.currentUser.role || 'Admin';
+        }
         this.isAuthenticated = savedAuthStatus ? JSON.parse(savedAuthStatus) : false;
       } else {
         this.currentUser = null;
@@ -206,6 +210,12 @@ class AuthService {
     return this.currentUser;
   }
 
+  public hasAdminOrOwnerAccess(): boolean {
+    if (!this.currentUser) return false;
+    const role = this.currentUser.authRole || this.currentUser.role;
+    return role === 'Admin' || role === 'Owner';
+  }
+
   public getIsAuthenticated(): boolean {
     return this.isAuthenticated;
   }
@@ -261,6 +271,7 @@ class AuthService {
         ...DEFAULT_USER,
         email: cleanEmail || DEFAULT_USER.email,
         role: role,
+        authRole: role,
         lastLoginAt: new Date().toISOString()
       };
       this.sessionToken = 'tok_fallback_' + Date.now();
@@ -325,11 +336,13 @@ class AuthService {
       if (err.message && !err.message.includes('fetch')) {
         throw err;
       }
+      const assignedRole = details.role || 'Admin';
       const newUser: AppUser = {
         id: 'usr_' + Date.now().toString(36),
         email: cleanEmail,
         name: cleanName,
-        role: details.role || 'Admin',
+        role: assignedRole,
+        authRole: assignedRole,
         mfaEnabled: true,
         pinCode: '1234',
         lastLoginAt: new Date().toISOString(),
@@ -415,8 +428,9 @@ class AuthService {
 
   public updateUserRole(newRole: UserRole): void {
     if (!this.currentUser) return;
-    const oldRole = this.currentUser.role;
+    const oldRole = this.currentUser.authRole || this.currentUser.role;
     this.currentUser.role = newRole;
+    this.currentUser.authRole = newRole;
 
     this.logAuditEvent(
       'User Security Role Escalation/Change',

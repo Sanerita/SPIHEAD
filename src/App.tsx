@@ -183,6 +183,10 @@ export function App() {
   };
 
   const handleClearAllData = () => {
+    if (!authService.hasAdminOrOwnerAccess()) {
+      showToast('Access Restricted: Clearing CRM data requires Admin or Owner permissions', 'info');
+      return;
+    }
     crmStore.clearAllData();
     setSelectedLeadId(null);
     showToast('All CRM data has been cleared', 'info');
