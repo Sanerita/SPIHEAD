@@ -128,11 +128,7 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
           
-          {/* Eyebrow */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-gold-400 text-xs font-bold mb-6 shadow-sm">
-            <Sparkles className="h-3.5 w-3.5 text-gold-400" />
-            <span>AI-Powered Multi-Currency CRM Suite</span>
-          </div>
+
 
           {/* Headline */}
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-tight max-w-4xl mx-auto mb-6">
