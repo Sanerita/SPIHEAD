@@ -174,6 +174,115 @@ class SubscriptionService {
     return SAAS_PLANS.find((p) => p.id === planTier) || SAAS_PLANS[1];
   }
 
+  public getCurrentPlan(): SubscriptionPlan {
+    return this.getPlanById(this.subscription.planId);
+  }
+
+  public getCapabilities() {
+    const plan = this.getCurrentPlan();
+    const isFreelancer = plan.id === 'freelancer';
+    const isBusiness = plan.id === 'business';
+    const isEnterprise = plan.id === 'enterprise';
+
+    return {
+      planId: plan.id,
+      planName: plan.name,
+      maxSeats: plan.maxSeats,
+      currentSeats: this.subscription.seatsCount,
+      aiCreditsRemaining: isEnterprise ? ('Unlimited' as const) : this.subscription.aiCreditsRemaining,
+      maxAiCreditsMonthly: plan.aiCreditsMonthly,
+      hasMultiUserSeats: !isFreelancer,
+      hasSharedCalendar: !isFreelancer,
+      hasCustomBranding: isBusiness || isEnterprise,
+      hasEnterpriseSSO: isEnterprise,
+      hasAiModelFineTuning: isEnterprise,
+      hasAuditRetention: isEnterprise,
+      hasDedicatedCSM: isEnterprise,
+      hasPrioritySLA: isEnterprise,
+    };
+  }
+
+  public hasFeature(featureKey: 'multi_user' | 'custom_branding' | 'sso' | 'ai_finetuning' | 'audit_archive' | 'csm'): boolean {
+    const caps = this.getCapabilities();
+    switch (featureKey) {
+      case 'multi_user':
+        return caps.hasMultiUserSeats;
+      case 'custom_branding':
+        return caps.hasCustomBranding;
+      case 'sso':
+        return caps.hasEnterpriseSSO;
+      case 'ai_finetuning':
+        return caps.hasAiModelFineTuning;
+      case 'audit_archive':
+        return caps.hasAuditRetention;
+      case 'csm':
+        return caps.hasDedicatedCSM;
+      default:
+        return false;
+    }
+  }
+
+  public canAddSeat(requestedNewCount?: number): { allowed: boolean; maxSeats: number | 'Unlimited'; message?: string } {
+    const plan = this.getCurrentPlan();
+    const targetCount = requestedNewCount ?? (this.subscription.seatsCount + 1);
+
+    if (plan.maxSeats === 'Unlimited') {
+      return { allowed: true, maxSeats: 'Unlimited' };
+    }
+
+    if (targetCount > plan.maxSeats) {
+      return {
+        allowed: false,
+        maxSeats: plan.maxSeats,
+        message: `Your current ${plan.name} plan is limited to max ${plan.maxSeats} seat${plan.maxSeats === 1 ? '' : 's'}. Upgrade your plan to add more team seats.`
+      };
+    }
+
+    return { allowed: true, maxSeats: plan.maxSeats };
+  }
+
+  public setSeatsCount(count: number): boolean {
+    const check = this.canAddSeat(count);
+    if (!check.allowed) return false;
+
+    this.subscription.seatsCount = count;
+    this.saveState();
+    this.notify();
+    return true;
+  }
+
+  public consumeAiCredit(amount: number = 1): { success: boolean; remaining: number | 'Unlimited'; message?: string } {
+    const plan = this.getCurrentPlan();
+    if (plan.id === 'enterprise' || plan.aiCreditsMonthly === 'Unlimited') {
+      return { success: true, remaining: 'Unlimited' };
+    }
+
+    if (this.subscription.aiCreditsRemaining < amount) {
+      return {
+        success: false,
+        remaining: this.subscription.aiCreditsRemaining,
+        message: `AI Lead Energy Credits Depleted (${this.subscription.aiCreditsRemaining} remaining). Upgrade to Small Business or Enterprise for additional monthly AI credits.`
+      };
+    }
+
+    this.subscription.aiCreditsRemaining = Math.max(0, this.subscription.aiCreditsRemaining - amount);
+    this.saveState();
+    this.notify();
+    return { success: true, remaining: this.subscription.aiCreditsRemaining };
+  }
+
+  public getCSMDetails() {
+    if (this.subscription.planId !== 'enterprise') return null;
+    return {
+      name: 'Sarah Jenkins',
+      title: 'Senior Enterprise Success Lead',
+      email: 's.jenkins@spihead.com',
+      phone: '+1 (800) 555-SPIHEAD (ext. 901)',
+      sla: '15-Minute Guaranteed Response SLA (24/7)',
+      dedicatedTenant: 'spihead-corp-ent-092.azure.net'
+    };
+  }
+
   public upgradeOrChangePlan(
     planTier: PlanTier,
     billingInterval: BillingInterval,
@@ -185,9 +294,23 @@ class SubscriptionService {
 
     if (promoCode && promoCode.trim().toUpperCase() === 'LAUNCH50') {
       discountPercent = 50;
+    } else if (promoCode && promoCode.trim().toUpperCase() === 'FREELANCE20') {
+      discountPercent = 20;
     }
 
     const priceInfo = currencyService.getPriceForPlan(planTier, billingInterval, discountPercent);
+
+    let newSeatsCount = this.subscription.seatsCount;
+    if (plan.maxSeats !== 'Unlimited') {
+      newSeatsCount = Math.min(this.subscription.seatsCount, plan.maxSeats);
+      if (newSeatsCount < 1) newSeatsCount = 1;
+    } else if (newSeatsCount < 15) {
+      newSeatsCount = 15;
+    }
+
+    let initialCredits = 150;
+    if (planTier === 'business') initialCredits = 1000;
+    if (planTier === 'enterprise') initialCredits = 999999;
 
     this.subscription = {
       ...this.subscription,
@@ -196,8 +319,8 @@ class SubscriptionService {
       currency: currencyService.getCurrencyCode(),
       status: 'active',
       nextBillingDate: new Date(Date.now() + (billingInterval === 'annual' ? 86400000 * 365 : 86400000 * 30)).toISOString(),
-      aiCreditsRemaining: typeof plan.aiCreditsMonthly === 'number' ? plan.aiCreditsMonthly : 999999,
-      seatsCount: typeof plan.maxSeats === 'number' ? Math.min(this.subscription.seatsCount, plan.maxSeats) : 15,
+      aiCreditsRemaining: initialCredits,
+      seatsCount: newSeatsCount,
       paymentMethod: paymentDetails || this.subscription.paymentMethod || { brand: 'Visa', last4: '8812', expiry: '09/29' },
       promoCodeApplied: promoCode || undefined,
       discountPercentage: discountPercent || undefined

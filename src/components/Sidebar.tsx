@@ -23,6 +23,8 @@ import {
 import { m365Service } from '../lib/m365Service';
 import { crmStore } from '../lib/store';
 import { authService } from '../lib/authService';
+import { subscriptionService } from '../lib/subscriptionService';
+import { UpgradePlanModal } from './UpgradePlanModal';
 import { M365Account } from '../types/crm';
 
 interface SidebarProps {
@@ -46,7 +48,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [m365Account, setM365Account] = useState<M365Account>(m365Service.getAccount());
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [subCaps, setSubCaps] = useState(subscriptionService.getCapabilities());
   const currentUser = authService.getCurrentUser();
+
+  useEffect(() => {
+    const unsub = subscriptionService.subscribe(() => {
+      setSubCaps(subscriptionService.getCapabilities());
+    });
+    return () => unsub();
+  }, []);
 
   // Live stats for badges
   const leadsCount = crmStore.getLeads().length;
@@ -344,6 +355,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ))}
         </div>
 
+        {/* Subscription Plan Status Card Widget (When Expanded) */}
+        {!isCollapsed && (
+          <div className="mx-3 mb-3 p-3 rounded-xl bg-navy-950/90 border border-gold-500/20 space-y-2 relative overflow-hidden">
+            <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-gold-400" />
+                <span className="font-extrabold text-white text-[11px] truncate max-w-[110px]">{subCaps.planName}</span>
+              </div>
+              <span className="px-1.5 py-0.2 rounded bg-gold-500/10 text-gold-400 border border-gold-500/20 text-[9px] font-mono font-extrabold">
+                Active
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5 text-[10px] bg-navy-900/60 p-1.5 rounded-lg border border-navy-800">
+              <div>
+                <span className="text-navy-400 block text-[9px]">Seats</span>
+                <span className="font-mono font-bold text-navy-100">
+                  {subCaps.currentSeats} / {subCaps.maxSeats}
+                </span>
+              </div>
+              <div>
+                <span className="text-navy-400 block text-[9px]">AI Credits</span>
+                <span className="font-mono font-bold text-gold-400">
+                  {subCaps.aiCreditsRemaining}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsUpgradeModalOpen(true)}
+              className="w-full py-1.5 rounded-lg bg-gold-400 hover:bg-gold-300 text-slate-950 font-black text-[10px] tracking-wide flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs"
+            >
+              <Zap className="h-3 w-3 fill-current" />
+              <span>Upgrade Plan</span>
+            </button>
+          </div>
+        )}
+
         {/* M365 Status Card Widget (When Expanded) */}
         {!isCollapsed && (
           <div className="mx-3 mb-3 p-3 rounded-xl bg-navy-950/80 border border-navy-700/80 space-y-2">
@@ -424,6 +474,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       </aside>
+
+      <UpgradePlanModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+      />
     </>
   );
 };

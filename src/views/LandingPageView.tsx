@@ -21,7 +21,9 @@ import {
   Kanban,
   Users,
   Search,
-  Activity
+  Activity,
+  Layers,
+  FileSpreadsheet
 } from 'lucide-react';
 import { currencyService } from '../lib/currencyService';
 import { subscriptionService, SAAS_PLANS } from '../lib/subscriptionService';
@@ -250,15 +252,15 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all space-y-3">
               <div className="h-10 w-10 rounded-xl bg-gold-500/10 text-gold-400 flex items-center justify-center font-bold">
                 <Sparkles className="h-5 w-5" />
               </div>
-              <h3 className="text-base font-extrabold text-white">AI Lead Energy Engine</h3>
+              <h3 className="text-base font-extrabold text-white">AI Lead Energy Scoring</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Automatically analyzes lead interactions, activity velocity, and deal signals to assign actionable prioritization scores.
+                Real-time lead engagement velocity scoring (1–100) powered by activity frequency, meeting attendance, and response speed to prioritize hot prospects.
               </p>
             </div>
 
@@ -268,7 +270,37 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({
               </div>
               <h3 className="text-base font-extrabold text-white">Visual Pipeline Kanban</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Drag-and-drop deals across customized stages, track conversion rates, and monitor revenue probability metrics in real time.
+                Drag-and-drop deals across customizable stages (New Lead, Proposal, Negotiation, Closed), filter by owner or status, and track total pipeline value.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold">
+                <Layers className="h-5 w-5" />
+              </div>
+              <h3 className="text-base font-extrabold text-white">Microsoft 365 Integration</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Direct 2-way sync with Microsoft 365, syncing Outlook email threads, Teams meeting schedules, OneDrive attachments, and Excel reports.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">
+                <Calendar className="h-5 w-5" />
+              </div>
+              <h3 className="text-base font-extrabold text-white">Calendar & Teams Scheduler</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Schedule client demos with instant Microsoft Teams meeting link generation, attendee status tracking, calendar sync, and meeting notes.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
+                <BarChart3 className="h-5 w-5" />
+              </div>
+              <h3 className="text-base font-extrabold text-white">Revenue & Funnel Analytics</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Comprehensive sales reporting with deal conversion velocity charts, win/loss ratios, lead source performance attribution, and pipeline forecasting.
               </p>
             </div>
 
@@ -278,27 +310,7 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({
               </div>
               <h3 className="text-base font-extrabold text-white">Localized Multi-Currency</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Automatic currency conversion (USD, EUR, GBP, ZAR, BRL, INR, JPY) tailored to regional purchasing power standards.
-              </p>
-            </div>
-
-            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all space-y-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold">
-                <Users className="h-5 w-5" />
-              </div>
-              <h3 className="text-base font-extrabold text-white">Team Seat Allocation</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Role-based access control (RBAC), team lead assignment, performance tracking, and shared workspace permissions.
-              </p>
-            </div>
-
-            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all space-y-3">
-              <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold">
-                <Calendar className="h-5 w-5" />
-              </div>
-              <h3 className="text-base font-extrabold text-white">Calendar & Meeting Sync</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Sync scheduled client demos, log meeting notes, and manage follow-up tasks directly within lead records.
+                Automatic multi-currency conversion supporting 10 global currencies (USD, EUR, GBP, ZAR, BRL, INR, JPY) with regional PPP rate adjustments.
               </p>
             </div>
 
@@ -306,9 +318,19 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({
               <div className="h-10 w-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center font-bold">
                 <ShieldCheck className="h-5 w-5" />
               </div>
-              <h3 className="text-base font-extrabold text-white">Bank-Grade Security</h3>
+              <h3 className="text-base font-extrabold text-white">RBAC & Security Lock</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                AES-256 encryption at rest, TLS 1.3 encryption in transit, session timeout controls, and automated security logging.
+                Role-based access control (Super Admin, Manager, Representative), active session lock, TLS encryption, and automated security audit logging.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all space-y-3">
+              <div className="h-10 w-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold">
+                <FileSpreadsheet className="h-5 w-5" />
+              </div>
+              <h3 className="text-base font-extrabold text-white">CSV, Excel & PDF Exports</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                One-click export of pipeline directories and financial reports to CSV, native Excel (.xlsx), and official downloadable tax receipt PDFs.
               </p>
             </div>
 
