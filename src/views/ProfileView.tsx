@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, 
   Mail, 
@@ -12,6 +12,7 @@ import {
   Save, 
   CheckCircle2, 
   Lock, 
+  LogOut,
   Key, 
   RefreshCw, 
   Download, 
@@ -24,10 +25,18 @@ import {
   X,
   PieChart,
   FileSpreadsheet,
-  Printer
+  Printer,
+  CreditCard,
+  Sparkles,
+  Zap,
+  Users
 } from 'lucide-react';
 import { M365Account, Lead, Meeting } from '../types/crm';
 import { m365Service } from '../lib/m365Service';
+import { authService } from '../lib/authService';
+import { subscriptionService } from '../lib/subscriptionService';
+import { currencyService } from '../lib/currencyService';
+import { UserSubscription, Invoice } from '../types/subscription';
 
 interface ProfileViewProps {
   account: M365Account;
@@ -36,6 +45,7 @@ interface ProfileViewProps {
   onAccountUpdate?: (updated: M365Account) => void;
   onSyncM365?: () => void;
   showToast?: (message: string, type?: 'success' | 'info') => void;
+  onLogout?: () => void;
 }
 
 export const ProfileView: React.FC<ProfileViewProps> = ({
@@ -45,9 +55,23 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onAccountUpdate,
   onSyncM365,
   showToast,
+  onLogout,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'security' | 'm365'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'security' | 'm365' | 'billing'>('overview');
+
+  // Subscription & Invoices State
+  const [sub, setSub] = useState<UserSubscription>(subscriptionService.getSubscription());
+  const [invoices, setInvoices] = useState<Invoice[]>(subscriptionService.getInvoices());
+  const [selectedInvoicePdf, setSelectedInvoicePdf] = useState<Invoice | null>(null);
+
+  useEffect(() => {
+    const unsubSub = subscriptionService.subscribe(() => {
+      setSub(subscriptionService.getSubscription());
+      setInvoices(subscriptionService.getInvoices());
+    });
+    return () => unsubSub();
+  }, []);
 
   // Form state
   const [displayName, setDisplayName] = useState(account.displayName || 'Sanelisiwe Sileku');
@@ -140,6 +164,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     }
 
     // Simulate password change success
+    authService.logAuditEvent('User Password Credentials Reset', 'Authentication', 'High', 'User security password modified successfully');
     setPasswordSuccess(true);
     setCurrentPassword('');
     setNewPassword('');
@@ -204,11 +229,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    authService.logAuditEvent('Executive CRM Data Export (CSV)', 'Export', 'Medium', `Exported pipeline & performance metrics for ${displayName}`);
     if (showToast) showToast('Exported executive summary to Excel (.csv)');
   };
 
   // Export User Profile & Sales Data to Printable PDF Report
   const handleExportPDF = () => {
+    authService.logAuditEvent('Executive CRM Data Export (PDF Report)', 'Export', 'Medium', `Generated printable summary report for ${displayName}`);
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       if (showToast) showToast('Please allow popups to open PDF export', 'info');
@@ -346,6 +373,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <Printer className="h-3.5 w-3.5 text-gold-400" />
               PDF Report
             </button>
+
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="px-3.5 py-1.5 rounded-xl bg-rose-950/90 hover:bg-rose-900 text-rose-200 border border-rose-800/80 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                title="Log Out & Exit to Landing Page"
+              >
+                <LogOut className="h-3.5 w-3.5 text-rose-300" />
+                Log Out
+              </button>
+            )}
           </div>
         </div>
 
@@ -412,6 +450,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             }`}
           >
             <Layers className="h-3.5 w-3.5" /> Microsoft 365 Account
+          </button>
+
+          <button
+            onClick={() => setActiveTab('billing')}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              activeTab === 'billing'
+                ? 'bg-navy-800 text-gold-400 border border-gold-400/30'
+                : 'text-navy-300 hover:text-white hover:bg-navy-900'
+            }`}
+          >
+            <CreditCard className="h-3.5 w-3.5" /> Billing History & Invoices
           </button>
         </div>
       </div>
@@ -852,6 +901,197 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Billing History & Invoices Tab */}
+      {activeTab === 'billing' && (() => {
+        const activePlanConfig = subscriptionService.getPlanById(sub.planId);
+        const currentPriceInfo = currencyService.getPriceForPlan(sub.planId, sub.billingInterval);
+
+        return (
+          <div className="space-y-6">
+            
+            {/* Active Subscription Summary Card */}
+            <div className="bg-slate-950 rounded-2xl p-6 text-white shadow-lg space-y-6 border border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30 uppercase font-mono flex items-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Status: {sub.status.toUpperCase()}
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-gold-400 text-xs font-bold border border-slate-700">
+                      {sub.billingInterval === 'annual' ? 'Annual Subscription' : 'Monthly Subscription'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h3 className="text-2xl font-black text-white flex items-center gap-2">
+                      {activePlanConfig.name} Plan
+                      <Sparkles className="h-5 w-5 text-gold-400" />
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">{activePlanConfig.tagline}</p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-slate-900 rounded-xl border border-slate-800 text-left sm:text-right min-w-[200px]">
+                  <div className="text-xs text-slate-400 font-bold">Subscription Rate:</div>
+                  <div className="text-xl font-black text-white font-mono">
+                    {currentPriceInfo.formattedMonthly} <span className="text-xs font-normal text-slate-400">/ user / mo</span>
+                  </div>
+                  <div className="text-[10px] text-gold-400 font-medium mt-0.5">
+                    Next renewal: {new Date(sub.nextRenewalDate).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Specs Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-800/80 text-xs">
+                <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-1">
+                  <div className="flex justify-between font-bold text-slate-300">
+                    <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-gold-400" /> Seats Capacity</span>
+                    <span className="text-white font-mono">{sub.seatsUsed} / {activePlanConfig.maxSeats}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">Active seat assignments</p>
+                </div>
+
+                <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-1">
+                  <div className="flex justify-between font-bold text-slate-300">
+                    <span className="flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-gold-400" /> Monthly AI Credits</span>
+                    <span className="text-white font-mono">{activePlanConfig.aiCreditsMonthly} / mo</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">Lead energy velocity scoring</p>
+                </div>
+
+                <div className="p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-1">
+                  <div className="flex justify-between font-bold text-slate-300">
+                    <span className="flex items-center gap-1.5"><CreditCard className="h-3.5 w-3.5 text-gold-400" /> Saved Card</span>
+                    <span className="text-white font-mono">{sub.paymentMethod.brand} •••• {sub.paymentMethod.last4}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">Expires {sub.paymentMethod.expiry}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Invoices Table */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-4 p-6">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">Billing History & Official Invoices</h3>
+                  <p className="text-xs text-slate-500">Download official tax receipts and review historical billing records.</p>
+                </div>
+                <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-mono text-xs font-bold">
+                  {invoices.length} Total Receipts
+                </span>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-left text-xs text-slate-700">
+                  <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-500 uppercase font-mono text-[10px]">
+                    <tr>
+                      <th className="px-5 py-3">Invoice #</th>
+                      <th className="px-5 py-3">Date</th>
+                      <th className="px-5 py-3">Plan</th>
+                      <th className="px-5 py-3">Amount Paid</th>
+                      <th className="px-5 py-3">Status</th>
+                      <th className="px-5 py-3 text-right">Receipt</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {invoices.map((inv) => {
+                      const invPrice = currencyService.formatCustomAmount(inv.amountUSD);
+                      return (
+                        <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-5 py-3.5 font-mono font-bold text-slate-900">{inv.number}</td>
+                          <td className="px-5 py-3.5">{new Date(inv.date).toLocaleDateString()}</td>
+                          <td className="px-5 py-3.5 font-medium">{inv.planName}</td>
+                          <td className="px-5 py-5 font-mono font-bold text-slate-900">{invPrice}</td>
+                          <td className="px-5 py-3.5">
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold font-mono">
+                              {inv.status.toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5 text-right">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedInvoicePdf(inv)}
+                              className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors cursor-pointer inline-flex items-center gap-1 border border-slate-200"
+                            >
+                              <Download className="h-3 w-3 text-slate-600" />
+                              View PDF
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* PDF Receipt Modal */}
+            {selectedInvoicePdf && (
+              <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-6 shadow-2xl border border-slate-200">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-slate-900" />
+                      <h3 className="text-base font-black text-slate-900">Official Tax Receipt</h3>
+                    </div>
+                    <button
+                      onClick={() => setSelectedInvoicePdf(null)}
+                      className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 text-xs text-slate-700 font-sans">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-extrabold text-slate-900 text-sm">SPIHEAD CRM Inc.</div>
+                        <div className="text-slate-500">Tax ID: US-998811223</div>
+                        <div className="text-slate-500">San Francisco, CA 94105</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono font-bold text-slate-900">{selectedInvoicePdf.number}</div>
+                        <div className="text-slate-500">{new Date(selectedInvoicePdf.date).toLocaleDateString()}</div>
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                      <div className="flex justify-between font-bold text-slate-900">
+                        <span>Description</span>
+                        <span>Amount</span>
+                      </div>
+                      <div className="flex justify-between text-slate-600">
+                        <span>{selectedInvoicePdf.planName} Subscription</span>
+                        <span className="font-mono">{currencyService.formatCustomAmount(selectedInvoicePdf.amountUSD)}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center text-sm font-black text-slate-900 pt-2 border-t border-slate-200">
+                      <span>Total Paid:</span>
+                      <span className="text-emerald-600 font-mono text-base">
+                        {currencyService.formatCustomAmount(selectedInvoicePdf.amountUSD)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedInvoicePdf(null)}
+                      className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition-colors cursor-pointer"
+                    >
+                      Close Receipt
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+        );
+      })()}
 
     </div>
   );

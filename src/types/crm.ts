@@ -135,3 +135,45 @@ export interface M365Account {
   bio?: string;
   avatarUrl?: string;
 }
+
+export type UserRole = 'Admin' | 'Sales Manager' | 'Sales Rep' | 'Auditor';
+
+export interface AppUser {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  avatarUrl?: string;
+  mfaEnabled: boolean;
+  mfaSecret?: string;
+  pinCode?: string;
+  lastLoginAt: string;
+  jobTitle?: string;
+  department?: string;
+  ipAddress?: string;
+}
+
+export interface SecurityAuditLog {
+  id: string;
+  action: string;
+  category: 'Authentication' | 'Permission' | 'Data Access' | 'System Config' | 'M365 OAuth' | 'Export' | 'Security Alert';
+  userEmail: string;
+  userRole: UserRole;
+  ipAddress: string;
+  severity: 'Info' | 'Low' | 'Medium' | 'High' | 'Critical';
+  timestamp: string;
+  details?: string;
+}
+
+export interface SecuritySettings {
+  mfaRequired: boolean;
+  sessionTimeoutMinutes: number;
+  dataMaskingEnabled: boolean;
+  autoLockOnInactivity: boolean;
+  ipWhitelistEnabled: boolean;
+  allowedIpRanges: string;
+  maxFailedLoginAttempts: number;
+  requireStrongPassword: boolean;
+  auditLoggingEnabled: boolean;
+  encryptionMode: 'AES-256-GCM' | 'TLS 1.3 / Encrypted Storage';
+}

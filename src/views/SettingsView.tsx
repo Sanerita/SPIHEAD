@@ -40,7 +40,9 @@ import {
 import { crmStore } from '../lib/store';
 import { themeService, ThemeColors } from '../lib/theme';
 import { m365Service } from '../lib/m365Service';
-import { M365Account } from '../types/crm';
+import { authService } from '../lib/authService';
+import { SecurityAuditLogTable } from '../components/SecurityAuditLogTable';
+import { M365Account, UserRole } from '../types/crm';
 
 interface SettingsViewProps {
   onClearAllData: () => void;
@@ -134,9 +136,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isRulesSaved, setIsRulesSaved] = useState(false);
 
   // Security State
+  const [secSettings, setSecSettings] = useState(() => authService.getSecuritySettings());
+  const [auditLogs, setAuditLogs] = useState(() => authService.getAuditLogs());
+  const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
   const [sessionTimeout, setSessionTimeout] = useState('30 Minutes');
-  const [auditLogging, setAuditLogging] = useState(true);
   const [gdprRetentionDays, setGdprRetentionDays] = useState(365);
+
+  useEffect(() => {
+    const unsub = authService.subscribe(() => {
+      setSecSettings(authService.getSecuritySettings());
+      setAuditLogs(authService.getAuditLogs());
+      setCurrentUser(authService.getCurrentUser());
+    });
+    return () => unsub();
+  }, []);
 
   // Modal State
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
@@ -179,7 +192,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         if (saved.alertEmailRecipient !== undefined) setAlertEmailRecipient(saved.alertEmailRecipient);
         if (saved.staleLeadDays !== undefined) setStaleLeadDays(saved.staleLeadDays);
         if (saved.sessionTimeout !== undefined) setSessionTimeout(saved.sessionTimeout);
-        if (saved.auditLogging !== undefined) setAuditLogging(saved.auditLogging);
         if (saved.gdprRetentionDays !== undefined) setGdprRetentionDays(saved.gdprRetentionDays);
       }
     } catch (e) {
@@ -235,7 +247,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       alertEmailRecipient,
       staleLeadDays,
       sessionTimeout,
-      auditLogging,
       gdprRetentionDays,
       ...overrides,
     };
@@ -1564,54 +1575,192 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* Tab 5: Security & Compliance */}
       {activeTab === 'security' && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-          <div className="border-b border-slate-100 pb-3 text-navy-900 flex items-center gap-2">
-            <Lock className="h-5 w-5 text-gold-500" />
-            <h3 className="font-extrabold text-base">Security, Compliance & Audit Trail</h3>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">Session Inactivity Timeout</label>
-              <select
-                value={sessionTimeout}
-                onChange={(e) => setSessionTimeout(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"
-              >
-                <option value="15 Minutes">15 Minutes</option>
-                <option value="30 Minutes">30 Minutes (Recommended)</option>
-                <option value="1 Hour">1 Hour</option>
-                <option value="8 Hours">8 Hours (End of Shift)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block font-bold text-slate-700 mb-1">GDPR & Data Retention Policy</label>
-              <select
-                value={gdprRetentionDays}
-                onChange={(e) => setGdprRetentionDays(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"
-              >
-                <option value={180}>180 Days Auto-Archive</option>
-                <option value={365}>365 Days Auto-Archive (Standard)</option>
-                <option value={730}>730 Days (2 Years)</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="font-extrabold text-navy-900">Audit Trail Logging</span>
-              <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                Enabled
+        <div className="space-y-6">
+          {/* Security Overview & Policy Panel */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 text-navy-900">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-gold-500" />
+                <h3 className="font-extrabold text-base">Security, Access Control & Encryption Policies</h3>
+              </div>
+              <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5" /> High Security Mode (AES-256 TLS 1.3)
               </span>
             </div>
-            <p className="text-slate-600">
-              Captures all lead updates, email send logs, calendar modifications, and user access records for compliance auditing.
-            </p>
+
+            {/* Role-Based Access Control (RBAC) Switcher */}
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-extrabold text-xs text-navy-900 uppercase tracking-wider">
+                    Current Role-Based Access Control (RBAC) Persona
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Switch active role to test permission boundaries across Lead Energy, Settings, and Data Exports
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 bg-navy-900 text-gold-400 font-extrabold text-xs rounded-lg font-mono">
+                  Active Role: {currentUser?.role || 'Admin'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {(['Admin', 'Sales Manager', 'Sales Rep', 'Auditor'] as UserRole[]).map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => {
+                      authService.updateUserRole(role);
+                      if (showToast) showToast(`RBAC Role switched to ${role}`, 'info');
+                    }}
+                    className={`py-2 px-3 rounded-xl text-xs font-extrabold transition-all border text-left flex flex-col gap-0.5 cursor-pointer ${
+                      currentUser?.role === role
+                        ? 'bg-navy-950 text-gold-400 border-navy-900 shadow-sm'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>{role}</span>
+                    <span className="text-[10px] font-normal text-slate-400">
+                      {role === 'Admin' && 'Full system control & security'}
+                      {role === 'Sales Manager' && 'Manage leads & assign quotas'}
+                      {role === 'Sales Rep' && 'Pipeline & outreach execution'}
+                      {role === 'Auditor' && 'Read-only compliance views'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Security Switches */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="font-extrabold text-navy-900">Enforce Multi-Factor Authentication (MFA)</span>
+                  <input
+                    type="checkbox"
+                    checked={secSettings.mfaRequired}
+                    onChange={(e) => {
+                      authService.updateSecuritySettings({ mfaRequired: e.target.checked });
+                      if (showToast) showToast(`MFA Requirement ${e.target.checked ? 'Enabled' : 'Disabled'}`);
+                    }}
+                    className="rounded text-gold-500 focus:ring-gold-500 h-4 w-4"
+                  />
+                </label>
+                <p className="text-[11px] text-slate-500">Requires 6-digit TOTP authenticator passcode for all user logins.</p>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="font-extrabold text-navy-900">Sensitive Data Masking (PII Protection)</span>
+                  <input
+                    type="checkbox"
+                    checked={secSettings.dataMaskingEnabled}
+                    onChange={(e) => {
+                      authService.updateSecuritySettings({ dataMaskingEnabled: e.target.checked });
+                      if (showToast) showToast(`Data Masking ${e.target.checked ? 'Activated' : 'Deactivated'}`);
+                    }}
+                    className="rounded text-gold-500 focus:ring-gold-500 h-4 w-4"
+                  />
+                </label>
+                <p className="text-[11px] text-slate-500">Masks lead phone numbers, budgets, and emails for non-Admin views.</p>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="font-extrabold text-navy-900">Auto-Lock Inactive Sessions</span>
+                  <input
+                    type="checkbox"
+                    checked={secSettings.autoLockOnInactivity}
+                    onChange={(e) => {
+                      authService.updateSecuritySettings({ autoLockOnInactivity: e.target.checked });
+                      if (showToast) showToast(`Auto-Lock Inactivity Guard ${e.target.checked ? 'Enabled' : 'Disabled'}`);
+                    }}
+                    className="rounded text-gold-500 focus:ring-gold-500 h-4 w-4"
+                  />
+                </label>
+                <p className="text-[11px] text-slate-500">Prompts PIN screen if user is idle for session timeout duration.</p>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="font-extrabold text-navy-900">Real-Time Security Audit Logging</span>
+                  <input
+                    type="checkbox"
+                    checked={secSettings.auditLoggingEnabled}
+                    onChange={(e) => {
+                      authService.updateSecuritySettings({ auditLoggingEnabled: e.target.checked });
+                      if (showToast) showToast(`Audit Logging ${e.target.checked ? 'Enabled' : 'Disabled'}`);
+                    }}
+                    className="rounded text-gold-500 focus:ring-gold-500 h-4 w-4"
+                  />
+                </label>
+                <p className="text-[11px] text-slate-500">Captures immutable logs of logins, data exports, and configuration edits.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-100">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Session Inactivity Timeout Limit</label>
+                <select
+                  value={secSettings.sessionTimeoutMinutes}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    authService.updateSecuritySettings({ sessionTimeoutMinutes: val });
+                    if (showToast) showToast(`Session Timeout set to ${val} minutes`);
+                  }}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"
+                >
+                  <option value={15}>15 Minutes (Strict Security)</option>
+                  <option value={30}>30 Minutes (Recommended)</option>
+                  <option value={60}>60 Minutes (1 Hour)</option>
+                  <option value={480}>480 Minutes (8 Hours Shift)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">GDPR & Data Retention Auto-Archive</label>
+                <select
+                  value={gdprRetentionDays}
+                  onChange={(e) => setGdprRetentionDays(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"
+                >
+                  <option value={180}>180 Days Auto-Archive</option>
+                  <option value={365}>365 Days Auto-Archive (Standard)</option>
+                  <option value={730}>730 Days (2 Years Compliance)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Session Lock Quick Action */}
+            <div className="flex items-center justify-between p-4 bg-navy-950 text-white rounded-xl">
+              <div className="flex items-center gap-2.5">
+                <Lock className="h-5 w-5 text-gold-400" />
+                <div>
+                  <h4 className="font-extrabold text-xs text-white">Manual Workspace Session Lock</h4>
+                  <p className="text-[11px] text-navy-300">Lock your screen immediately when stepping away from your console.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => authService.lockSession()}
+                className="px-4 py-2 rounded-xl bg-gold-400 hover:bg-gold-300 text-navy-950 font-black text-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer shrink-0"
+              >
+                <Lock className="h-3.5 w-3.5" /> Lock Workspace Now
+              </button>
+            </div>
           </div>
+
+          {/* Audit Log Table */}
+          <SecurityAuditLogTable
+            logs={auditLogs}
+            onClearLogs={() => {
+              authService.clearAuditLogs();
+              if (showToast) showToast('Security audit logs reset', 'info');
+            }}
+          />
         </div>
       )}
+
 
       {/* Tab 6: System Data & Storage */}
       {activeTab === 'database' && (

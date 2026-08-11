@@ -17,10 +17,12 @@ import {
   Sparkles,
   LogOut,
   ShieldCheck,
-  TrendingUp
+  TrendingUp,
+  Lock
 } from 'lucide-react';
 import { m365Service } from '../lib/m365Service';
 import { crmStore } from '../lib/store';
+import { authService } from '../lib/authService';
 import { M365Account } from '../types/crm';
 
 interface SidebarProps {
@@ -28,18 +30,23 @@ interface SidebarProps {
   setCurrentView: (view: string) => void;
   onOpenM365Hub?: () => void;
   onSyncAllM365?: () => void;
+  onLockSession?: () => void;
+  onLogout?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
   currentView, 
   setCurrentView, 
   onOpenM365Hub,
-  onSyncAllM365
+  onSyncAllM365,
+  onLockSession,
+  onLogout
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [m365Account, setM365Account] = useState<M365Account>(m365Service.getAccount());
   const [isSyncing, setIsSyncing] = useState(false);
+  const currentUser = authService.getCurrentUser();
 
   // Live stats for badges
   const leadsCount = crmStore.getLeads().length;
@@ -61,6 +68,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       setM365Account(m365Service.getAccount());
       setIsSyncing(false);
     }, 1000);
+  };
+
+  const handleLogout = () => {
+    if (onLogout) {
+      onLogout();
+    } else {
+      authService.logout();
+      setCurrentView('landing');
+    }
   };
 
   const navGroups = [
@@ -219,6 +235,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <p className="text-[10px] text-navy-200 truncate">{m365Account.accountEmail}</p>
                 </div>
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleLogout();
+                }}
+                className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-800/80 text-rose-200 text-xs font-extrabold transition-colors cursor-pointer"
+              >
+                <LogOut className="h-4 w-4" />
+                Log Out to Landing Page
+              </button>
             </div>
           </div>
         </div>
@@ -345,27 +373,55 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
 
         {/* User Profile Footer Widget */}
-        <div className="p-3 border-t border-navy-800 bg-navy-950/60">
-          <button
-            onClick={() => setCurrentView('profile')}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} p-2 rounded-xl hover:bg-navy-800/80 transition-all text-left group cursor-pointer`}
-            title={isCollapsed ? m365Account.displayName : undefined}
-          >
-            <div className="h-9 w-9 rounded-xl bg-gold-500 text-navy-950 font-black flex items-center justify-center text-xs shrink-0 shadow-xs group-hover:scale-105 transition-transform">
-              {m365Account.displayName.split(' ').map(n => n[0]).join('') || 'SS'}
-            </div>
+        <div className="p-3 border-t border-navy-800 bg-navy-950/60 space-y-2">
+          <div className="flex items-center justify-between gap-1">
+            <button
+              onClick={() => setCurrentView('profile')}
+              className={`flex-1 flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'} p-1.5 rounded-xl hover:bg-navy-800/80 transition-all text-left group cursor-pointer min-w-0`}
+              title={isCollapsed ? m365Account.displayName : undefined}
+            >
+              <div className="h-8 w-8 rounded-xl bg-gold-500 text-navy-950 font-black flex items-center justify-center text-xs shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                {m365Account.displayName.split(' ').map(n => n[0]).join('') || 'SS'}
+              </div>
+
+              {!isCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <p className="text-xs font-extrabold text-white truncate group-hover:text-gold-300 transition-colors">
+                      {m365Account.displayName}
+                    </p>
+                  </div>
+                  <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-navy-800 text-gold-400 border border-navy-700">
+                    {currentUser?.role || 'Admin'}
+                  </span>
+                </div>
+              )}
+            </button>
 
             {!isCollapsed && (
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-extrabold text-white truncate group-hover:text-gold-300 transition-colors">
-                  {m365Account.displayName}
-                </p>
-                <p className="text-[10px] text-navy-300 truncate">
-                  {m365Account.accountEmail}
-                </p>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onLockSession) onLockSession();
+                    else authService.lockSession();
+                  }}
+                  className="p-2 rounded-xl bg-navy-800 hover:bg-navy-700 text-gold-400 hover:text-gold-300 border border-navy-700 transition-all cursor-pointer"
+                  title="Lock Secured Workspace"
+                >
+                  <Lock className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="p-2 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 hover:text-rose-100 border border-rose-800/80 transition-all cursor-pointer"
+                  title="Log Out & Exit to Landing Page"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                </button>
               </div>
             )}
-          </button>
+          </div>
         </div>
       </aside>
     </>

@@ -12,17 +12,22 @@ import { AnalyticsView } from './views/AnalyticsView';
 import { M365HubView } from './views/M365HubView';
 import { SettingsView } from './views/SettingsView';
 import { ProfileView } from './views/ProfileView';
+import { LandingPageView } from './views/LandingPageView';
+import { subscriptionService } from './lib/subscriptionService';
 
 import { AddLeadModal } from './components/AddLeadModal';
 import { ScheduleMeetingModal } from './components/ScheduleMeetingModal';
 import { SendEmailModal } from './components/SendEmailModal';
+import { LoginModal } from './components/LoginModal';
+import { LockScreenModal } from './components/LockScreenModal';
 
-import { CheckCircle2, AlertCircle, X, Sparkles } from 'lucide-react';
+import { CheckCircle2, AlertCircle, X, Sparkles, ShieldCheck } from 'lucide-react';
 
 import { themeService } from './lib/theme';
+import { authService } from './lib/authService';
 
 export function App() {
-  const [currentView, setCurrentView] = useState<string>('dashboard');
+  const [currentView, setCurrentView] = useState<string>('landing');
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
 
   // Store data states
@@ -52,17 +57,31 @@ export function App() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Subscribe to store updates
+  // Auth & Security States
+  const [isAuthenticated, setIsAuthenticated] = useState(() => authService.getIsAuthenticated());
+  const [isLocked, setIsLocked] = useState(() => authService.getIsLocked());
+
+  // Subscribe to store & auth updates
   useEffect(() => {
     themeService.applyTheme(themeService.getTheme());
-    const unsubscribe = crmStore.subscribe(() => {
+
+    const unsubscribeCrm = crmStore.subscribe(() => {
       setLeads(crmStore.getLeads());
       setMeetings(crmStore.getMeetings());
       setActivities(crmStore.getActivities());
       setEmails(crmStore.getEmails());
       setM365Account(m365Service.getAccount());
     });
-    return () => unsubscribe();
+
+    const unsubscribeAuth = authService.subscribe(() => {
+      setIsAuthenticated(authService.getIsAuthenticated());
+      setIsLocked(authService.getIsLocked());
+    });
+
+    return () => {
+      unsubscribeCrm();
+      unsubscribeAuth();
+    };
   }, []);
 
   const handleStatusChange = (leadId: string, newStatus: LeadStatus) => {
@@ -99,6 +118,12 @@ export function App() {
   const handleSyncAllM365 = () => {
     const result = crmStore.syncAllM365();
     showToast(`M365 Sync Complete: ${result.contacts} contacts & ${result.meetings} events updated.`);
+  };
+
+  const handleLogout = () => {
+    authService.logout();
+    setCurrentView('landing');
+    showToast('Logged out of SPIHEAD Workspace', 'info');
   };
 
   const handleUpdateMeetingStatus = (meetingId: string, status: 'Scheduled' | 'Completed' | 'Cancelled') => {
@@ -257,6 +282,7 @@ export function App() {
             onAccountUpdate={(updated) => setM365Account(updated)}
             onSyncM365={handleSyncAllM365}
             showToast={showToast}
+            onLogout={handleLogout}
           />
         );
 
@@ -283,9 +309,43 @@ export function App() {
     }
   };
 
+  if (currentView === 'landing') {
+    return (
+      <LandingPageView
+        onEnterApp={() => {
+          if (!authService.getIsAuthenticated()) {
+            authService.login('sanelisiwe.sileku@spihead.com', 'Admin');
+          }
+          setCurrentView('dashboard');
+        }}
+        onOpenPricing={(planTier) => {
+          if (planTier) {
+            subscriptionService.upgradeOrChangePlan(planTier, 'annual');
+            const plan = subscriptionService.getPlanById(planTier);
+            showToast(`Subscribed to ${plan.name}! Workspace ready.`, 'success');
+          }
+          if (!authService.getIsAuthenticated()) {
+            authService.login('sanelisiwe.sileku@spihead.com', 'Admin');
+          }
+          setCurrentView('dashboard');
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col lg:flex-row font-sans text-slate-900 antialiased selection:bg-gold-400 selection:text-navy-950">
       
+      {/* Auth Screen Modal if user is logged out */}
+      {!isAuthenticated && (
+        <LoginModal onLoginSuccess={() => showToast('Authenticated & Session Initialized', 'success')} />
+      )}
+
+      {/* Lock Screen Modal if workspace is locked */}
+      {isAuthenticated && isLocked && (
+        <LockScreenModal onUnlocked={() => showToast('Workspace Session Unlocked', 'success')} />
+      )}
+
       {/* Navigation Sidebar */}
       <Navbar
         currentView={currentView}
@@ -295,6 +355,8 @@ export function App() {
         }}
         onOpenM365Hub={() => setCurrentView('m365')}
         onSyncAllM365={handleSyncAllM365}
+        onLockSession={() => authService.lockSession()}
+        onLogout={handleLogout}
       />
 
       {/* Main View & Footer Content Area */}
