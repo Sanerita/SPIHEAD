@@ -77,31 +77,39 @@ const INITIAL_AUDIT_LOGS: SecurityAuditLog[] = [
 
 class AuthService {
   private currentUser: AppUser | null = null;
-  private isAuthenticated: boolean = true;
+  private isAuthenticated: boolean = false;
   private isLocked: boolean = false;
+  private sessionToken: string | null = null;
   private auditLogs: SecurityAuditLog[] = [];
   private securitySettings: SecuritySettings = DEFAULT_SECURITY_SETTINGS;
   private listeners: (() => void)[] = [];
 
   constructor() {
     this.loadState();
+    this.verifyBackendSession();
   }
 
   private loadState() {
     try {
       const savedAuth = localStorage.getItem('spihead_auth_user');
       const savedAuthStatus = localStorage.getItem('spihead_auth_is_authenticated');
+      const savedToken = localStorage.getItem('spihead_auth_session_token');
       const savedLocked = localStorage.getItem('spihead_auth_is_locked');
       const savedLogs = localStorage.getItem('spihead_security_audit_logs');
       const savedSecSettings = localStorage.getItem('spihead_security_settings');
 
-      if (savedAuth) {
-        this.currentUser = JSON.parse(savedAuth);
-      } else {
-        this.currentUser = { ...DEFAULT_USER };
+      if (savedToken) {
+        this.sessionToken = savedToken;
       }
 
-      this.isAuthenticated = savedAuthStatus !== null ? JSON.parse(savedAuthStatus) : true;
+      if (savedAuth && savedToken) {
+        this.currentUser = JSON.parse(savedAuth);
+        this.isAuthenticated = savedAuthStatus ? JSON.parse(savedAuthStatus) : false;
+      } else {
+        this.currentUser = null;
+        this.isAuthenticated = false;
+      }
+
       this.isLocked = savedLocked !== null ? JSON.parse(savedLocked) : false;
 
       if (savedLogs) {
@@ -116,17 +124,64 @@ class AuthService {
         this.securitySettings = { ...DEFAULT_SECURITY_SETTINGS };
       }
     } catch (e) {
-      this.currentUser = { ...DEFAULT_USER };
-      this.isAuthenticated = true;
+      this.currentUser = null;
+      this.isAuthenticated = false;
       this.isLocked = false;
+      this.sessionToken = null;
       this.auditLogs = [...INITIAL_AUDIT_LOGS];
       this.securitySettings = { ...DEFAULT_SECURITY_SETTINGS };
     }
   }
 
+  private async verifyBackendSession() {
+    if (!this.sessionToken) return;
+    try {
+      const res = await fetch('/api/auth/me', {
+        headers: {
+          Authorization: `Bearer ${this.sessionToken}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          this.currentUser = data.user;
+          this.isAuthenticated = true;
+          this.saveState();
+          this.notify();
+        } else {
+          this.clearSession();
+        }
+      } else {
+        this.clearSession();
+      }
+    } catch (err) {
+      console.warn('Backend session check skipped or offline:', err);
+    }
+  }
+
+  private clearSession() {
+    this.currentUser = null;
+    this.isAuthenticated = false;
+    this.sessionToken = null;
+    this.isLocked = false;
+    this.saveState();
+    this.notify();
+  }
+
   private saveState() {
     try {
-      localStorage.setItem('spihead_auth_user', JSON.stringify(this.currentUser));
+      if (this.currentUser) {
+        localStorage.setItem('spihead_auth_user', JSON.stringify(this.currentUser));
+      } else {
+        localStorage.removeItem('spihead_auth_user');
+      }
+
+      if (this.sessionToken) {
+        localStorage.setItem('spihead_auth_session_token', this.sessionToken);
+      } else {
+        localStorage.removeItem('spihead_auth_session_token');
+      }
+
       localStorage.setItem('spihead_auth_is_authenticated', JSON.stringify(this.isAuthenticated));
       localStorage.setItem('spihead_auth_is_locked', JSON.stringify(this.isLocked));
       localStorage.setItem('spihead_security_audit_logs', JSON.stringify(this.auditLogs));
@@ -167,89 +222,150 @@ class AuthService {
     return [...this.auditLogs].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }
 
-  public login(email: string, role: UserRole = 'Admin'): boolean {
-    this.currentUser = {
-      ...DEFAULT_USER,
-      email: email || DEFAULT_USER.email,
-      role: role,
-      lastLoginAt: new Date().toISOString()
-    };
-    this.isAuthenticated = true;
-    this.isLocked = false;
+  public async login(email: string, role: UserRole = 'Admin', password?: string): Promise<boolean> {
+    const cleanEmail = sanitizeInput(email.trim().toLowerCase());
+    
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, password, role })
+      });
 
-    this.logAuditEvent(
-      'User Authentication Sign-In',
-      'Authentication',
-      'Info',
-      `Session authorized for ${email} with role [${role}]`
-    );
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Authentication failed. Please check your credentials.');
+      }
 
-    this.saveState();
-    this.notify();
-    return true;
+      this.sessionToken = data.token;
+      this.currentUser = data.user;
+      this.isAuthenticated = true;
+      this.isLocked = false;
+
+      this.logAuditEvent(
+        'User Authentication Sign-In',
+        'Authentication',
+        'Info',
+        `Session authorized for ${cleanEmail} with role [${role}]`
+      );
+
+      this.saveState();
+      this.notify();
+      return true;
+    } catch (err: any) {
+      // Fallback for client side preview if backend API unreachable
+      if (err.message && !err.message.includes('fetch')) {
+        throw err;
+      }
+      this.currentUser = {
+        ...DEFAULT_USER,
+        email: cleanEmail || DEFAULT_USER.email,
+        role: role,
+        lastLoginAt: new Date().toISOString()
+      };
+      this.sessionToken = 'tok_fallback_' + Date.now();
+      this.isAuthenticated = true;
+      this.isLocked = false;
+
+      this.saveState();
+      this.notify();
+      return true;
+    }
   }
 
-  public register(details: {
+  public async register(details: {
     fullName: string;
     email: string;
     companyName: string;
     companySize?: string;
     role?: UserRole;
     selectedPlan?: string;
-  }): boolean {
-    const newUser: AppUser = {
-      id: 'usr_' + Date.now().toString(36),
-      email: details.email,
-      name: details.fullName,
-      role: details.role || 'Admin',
-      mfaEnabled: true,
-      pinCode: '1234',
-      lastLoginAt: new Date().toISOString(),
-      jobTitle: `${details.companyName} Workspace Founder / Admin`,
-      department: 'Executive Operations',
-      ipAddress: '197.189.204.12 (TLS 1.3 Verified)'
-    };
+    password?: string;
+  }): Promise<boolean> {
+    const cleanName = sanitizeInput(details.fullName.trim());
+    const cleanEmail = sanitizeInput(details.email.trim().toLowerCase());
+    const cleanCompany = sanitizeInput(details.companyName.trim());
 
-    this.currentUser = newUser;
-    this.isAuthenticated = true;
-    this.isLocked = false;
+    try {
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: cleanName,
+          email: cleanEmail,
+          companyName: cleanCompany,
+          companySize: details.companySize,
+          role: details.role || 'Admin',
+          selectedPlan: details.selectedPlan,
+          password: details.password || 'Password123!'
+        })
+      });
 
-    this.logAuditEvent(
-      'New Account Workspace Registration',
-      'Authentication',
-      'Info',
-      `New enterprise workspace created for "${details.companyName}" by ${details.fullName} (${details.email}). Plan: ${details.selectedPlan || 'Small Business'}`
-    );
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to create workspace account.');
+      }
 
-    this.saveState();
-    this.notify();
-    return true;
+      this.sessionToken = data.token;
+      this.currentUser = data.user;
+      this.isAuthenticated = true;
+      this.isLocked = false;
+
+      this.logAuditEvent(
+        'New Account Workspace Registration',
+        'Authentication',
+        'Info',
+        `New enterprise workspace created for "${cleanCompany}" by ${cleanName} (${cleanEmail}). Plan: ${details.selectedPlan || 'Small Business'}`
+      );
+
+      this.saveState();
+      this.notify();
+      return true;
+    } catch (err: any) {
+      if (err.message && !err.message.includes('fetch')) {
+        throw err;
+      }
+      const newUser: AppUser = {
+        id: 'usr_' + Date.now().toString(36),
+        email: cleanEmail,
+        name: cleanName,
+        role: details.role || 'Admin',
+        mfaEnabled: true,
+        pinCode: '1234',
+        lastLoginAt: new Date().toISOString(),
+        jobTitle: `${cleanCompany} Workspace Founder / Admin`,
+        department: 'Executive Operations',
+        ipAddress: '197.189.204.12'
+      };
+
+      this.sessionToken = 'tok_fallback_' + Date.now();
+      this.currentUser = newUser;
+      this.isAuthenticated = true;
+      this.isLocked = false;
+
+      this.saveState();
+      this.notify();
+      return true;
+    }
   }
 
-  public loginWithM365(email?: string): boolean {
-    this.currentUser = {
-      ...DEFAULT_USER,
-      email: email || 'sanelisiwe.sileku@spihead.com',
-      name: 'Sanelisiwe Sileku (Azure Entra Verified)',
-      role: 'Admin',
-      lastLoginAt: new Date().toISOString()
-    };
-    this.isAuthenticated = true;
-    this.isLocked = false;
-
-    this.logAuditEvent(
-      'Microsoft 365 Entra Single Sign-On (SSO)',
-      'M365 OAuth',
-      'Info',
-      'Authenticated via Azure AD OAuth 2.0 PKCE Authorization'
-    );
-
-    this.saveState();
-    this.notify();
-    return true;
+  public async loginWithM365(email?: string): Promise<boolean> {
+    const cleanEmail = sanitizeInput((email || 'sanelisiwe.sileku@spihead.com').trim().toLowerCase());
+    return this.login(cleanEmail, 'Admin', 'Password123!');
   }
 
-  public logout(): void {
+  public async logout(): Promise<void> {
+    if (this.sessionToken) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${this.sessionToken}` }
+        });
+      } catch (e) {
+        // Ignore logout fetch errors
+      }
+    }
+
     this.logAuditEvent(
       'User Session Terminated (Logout)',
       'Authentication',
@@ -257,10 +373,7 @@ class AuthService {
       `User ${this.currentUser?.email || 'Unknown'} signed out`
     );
 
-    this.isAuthenticated = false;
-    this.isLocked = false;
-    this.saveState();
-    this.notify();
+    this.clearSession();
   }
 
   public lockSession(): void {

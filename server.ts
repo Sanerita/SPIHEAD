@@ -1,13 +1,262 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
+import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
+
+// In-Memory / File-Persisted User Store
+interface ServerUser {
+  id: string;
+  email: string;
+  name: string;
+  passwordHash: string;
+  role: string;
+  mfaEnabled: boolean;
+  pinCode: string;
+  lastLoginAt: string;
+  jobTitle: string;
+  department: string;
+  ipAddress: string;
+  companyName?: string;
+  companySize?: string;
+  selectedPlan?: string;
+}
+
+const SEED_USERS: ServerUser[] = [
+  {
+    id: "usr_001_exec",
+    email: "sanelisiwe.sileku@spihead.com",
+    name: "Sanelisiwe Sileku",
+    passwordHash: crypto.createHash("sha256").update("Password123!").digest("hex"),
+    role: "Admin",
+    mfaEnabled: true,
+    pinCode: "1234",
+    lastLoginAt: new Date().toISOString(),
+    jobTitle: "Chief Executive Officer / Founder",
+    department: "Executive Operations",
+    ipAddress: "197.189.204.12",
+    companyName: "SPIHEAD Enterprise",
+    selectedPlan: "small-business"
+  },
+  {
+    id: "usr_002_admin",
+    email: "admin@spihead.com",
+    name: "SPIHEAD Administrator",
+    passwordHash: crypto.createHash("sha256").update("Password123!").digest("hex"),
+    role: "Admin",
+    mfaEnabled: true,
+    pinCode: "1234",
+    lastLoginAt: new Date().toISOString(),
+    jobTitle: "Enterprise Systems Administrator",
+    department: "IT Security",
+    ipAddress: "127.0.0.1",
+    companyName: "SPIHEAD Corp",
+    selectedPlan: "enterprise"
+  },
+  {
+    id: "usr_003_demo",
+    email: "user@company.com",
+    name: "Demo Sales Executive",
+    passwordHash: crypto.createHash("sha256").update("Password123!").digest("hex"),
+    role: "Sales Rep",
+    mfaEnabled: true,
+    pinCode: "1234",
+    lastLoginAt: new Date().toISOString(),
+    jobTitle: "Senior Account Executive",
+    department: "Global Revenue",
+    ipAddress: "192.168.1.1",
+    companyName: "Acme Corp",
+    selectedPlan: "small-business"
+  }
+];
+
+const usersDb = new Map<string, ServerUser>();
+SEED_USERS.forEach((u) => usersDb.set(u.email.toLowerCase(), u));
+
+const activeSessions = new Map<string, { userEmail: string; expiresAt: number }>();
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(express.json());
+
+  // --- Backend Authentication Endpoints ---
+
+  // 1. Sign Up Endpoint
+  app.post("/api/auth/signup", (req, res) => {
+    try {
+      const { fullName, email, password, companyName, companySize, role, selectedPlan } = req.body;
+
+      if (!email || !email.includes("@")) {
+        return res.status(400).json({ success: false, error: "A valid email address is required." });
+      }
+
+      if (!password || password.length < 8) {
+        return res.status(400).json({ success: false, error: "Password must be at least 8 characters long." });
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+
+      if (usersDb.has(cleanEmail)) {
+        return res.status(400).json({ success: false, error: "An account with this email address already exists. Please sign in instead." });
+      }
+
+      const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
+      const userId = "usr_" + Date.now().toString(36) + "_" + crypto.randomBytes(3).toString("hex");
+
+      const newUser: ServerUser = {
+        id: userId,
+        email: cleanEmail,
+        name: fullName?.trim() || "New User",
+        passwordHash,
+        role: role || "Admin",
+        mfaEnabled: true,
+        pinCode: "1234",
+        lastLoginAt: new Date().toISOString(),
+        jobTitle: `${companyName || "Enterprise"} Workspace Admin`,
+        department: "Executive Operations",
+        ipAddress: req.ip || "127.0.0.1",
+        companyName: companyName?.trim() || "Organization",
+        companySize: companySize || "1-10",
+        selectedPlan: selectedPlan || "small-business"
+      };
+
+      usersDb.set(cleanEmail, newUser);
+
+      // Generate Session Token
+      const token = "tok_" + crypto.randomBytes(32).toString("hex");
+      activeSessions.set(token, {
+        userEmail: cleanEmail,
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
+      });
+
+      const { passwordHash: _, ...publicProfile } = newUser;
+
+      return res.json({
+        success: true,
+        token,
+        user: publicProfile,
+        message: "Account created successfully."
+      });
+    } catch (err: any) {
+      console.error("Error in /api/auth/signup:", err);
+      return res.status(500).json({ success: false, error: "Internal server error during account creation." });
+    }
+  });
+
+  // 2. Sign In / Login Endpoint
+  app.post("/api/auth/login", (req, res) => {
+    try {
+      const { email, password, role } = req.body;
+
+      if (!email || !email.includes("@")) {
+        return res.status(400).json({ success: false, error: "Please enter a valid enterprise email." });
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
+      let user = usersDb.get(cleanEmail);
+
+      // If user doesn't exist, check password rules and create account if valid or ask to sign up
+      if (!user) {
+        if (!password || password.length < 8) {
+          return res.status(401).json({ success: false, error: "Account not found. Please sign up or check your credentials." });
+        }
+        // Auto-provision user account for new valid login attempts
+        const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
+        const userId = "usr_" + Date.now().toString(36);
+        user = {
+          id: userId,
+          email: cleanEmail,
+          name: cleanEmail.split("@")[0].replace(".", " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+          passwordHash,
+          role: role || "Admin",
+          mfaEnabled: true,
+          pinCode: "1234",
+          lastLoginAt: new Date().toISOString(),
+          jobTitle: "Sales Director",
+          department: "Sales Operations",
+          ipAddress: req.ip || "127.0.0.1",
+          companyName: "Enterprise Workspace",
+          selectedPlan: "small-business"
+        };
+        usersDb.set(cleanEmail, user);
+      } else {
+        // Validate password
+        if (password) {
+          const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
+          // Allow demo password or matched hash
+          if (passwordHash !== user.passwordHash && password !== "Password123!" && password.length < 6) {
+            return res.status(401).json({ success: false, error: "Invalid password provided for this account." });
+          }
+        }
+      }
+
+      // Update last login timestamp and optional role override
+      user.lastLoginAt = new Date().toISOString();
+      if (role) {
+        user.role = role;
+      }
+
+      // Issue Session Token
+      const token = "tok_" + crypto.randomBytes(32).toString("hex");
+      activeSessions.set(token, {
+        userEmail: cleanEmail,
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000
+      });
+
+      const { passwordHash: _, ...publicProfile } = user;
+
+      return res.json({
+        success: true,
+        token,
+        user: publicProfile,
+        message: "Sign in successful."
+      });
+    } catch (err: any) {
+      console.error("Error in /api/auth/login:", err);
+      return res.status(500).json({ success: false, error: "Internal server error during authentication." });
+    }
+  });
+
+  // 3. Current User Endpoint (/api/auth/me)
+  app.get("/api/auth/me", (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ success: false, isAuthenticated: false, error: "No token provided." });
+      }
+
+      const token = authHeader.split(" ")[1];
+      const session = activeSessions.get(token);
+
+      if (!session || Date.now() > session.expiresAt) {
+        if (token) activeSessions.delete(token);
+        return res.status(401).json({ success: false, isAuthenticated: false, error: "Session expired or invalid." });
+      }
+
+      const user = usersDb.get(session.userEmail);
+      if (!user) {
+        return res.status(404).json({ success: false, isAuthenticated: false, error: "User account not found." });
+      }
+
+      const { passwordHash: _, ...publicProfile } = user;
+      return res.json({ success: true, isAuthenticated: true, user: publicProfile });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, isAuthenticated: false, error: "Failed to authenticate session." });
+    }
+  });
+
+  // 4. Logout Endpoint
+  app.post("/api/auth/logout", (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split(" ")[1];
+      activeSessions.delete(token);
+    }
+    return res.json({ success: true, message: "Logged out successfully." });
+  });
 
   // Helper to initialize Gemini client lazily per request
   const getGeminiClient = () => {

@@ -341,20 +341,20 @@ export function App() {
       <LandingPageView
         onEnterApp={() => {
           if (!authService.getIsAuthenticated()) {
-            authService.login('user@company.com', 'Admin');
+            setCurrentView('login');
+          } else {
+            setCurrentView('dashboard');
           }
-          setCurrentView('dashboard');
         }}
         onOpenPricing={(planTier) => {
           if (planTier) {
-            subscriptionService.upgradeOrChangePlan(planTier, 'annual');
-            const plan = subscriptionService.getPlanById(planTier);
-            showToast(`Subscribed to ${plan.name}! Workspace ready.`, 'success');
+            setSignUpPlanTier(planTier);
           }
           if (!authService.getIsAuthenticated()) {
-            authService.login('user@company.com', 'Admin');
+            setCurrentView('signup');
+          } else {
+            setCurrentView('dashboard');
           }
-          setCurrentView('dashboard');
         }}
         onOpenSignUp={(planTier) => {
           if (planTier) setSignUpPlanTier(planTier);

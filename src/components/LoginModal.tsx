@@ -35,35 +35,49 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onNaviga
     }, 600);
   };
 
-  const handleMfaSubmit = (e: React.FormEvent) => {
+  const handleMfaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (mfaCode && mfaCode.length > 0 && mfaCode.length < 4) {
-      setError('Invalid 2FA Authenticator Passcode. Please enter a valid code.');
+    if (mfaCode && mfaCode.length > 0 && mfaCode.length !== 6) {
+      setError('Invalid 2FA Authenticator Passcode. Please enter a 6-digit code.');
       return;
     }
 
-    authService.login(email || 'user@company.com', selectedRole);
-    onLoginSuccess();
+    try {
+      setIsAuthenticating(true);
+      setError(null);
+      await authService.login(email || 'sanelisiwe.sileku@spihead.com', selectedRole, password);
+      setIsAuthenticating(false);
+      onLoginSuccess();
+    } catch (err: any) {
+      setIsAuthenticating(false);
+      setError(err.message || 'Authentication failed. Please check your credentials.');
+    }
   };
 
-  const handleM365SSO = () => {
+  const handleM365SSO = async () => {
     setIsAuthenticating(true);
     setAuthProviderText('Authenticating with Microsoft 365 Entra ID...');
-    setTimeout(() => {
-      authService.loginWithM365(email || 'user@company.com');
+    try {
+      await authService.loginWithM365(email || 'sanelisiwe.sileku@spihead.com');
       setIsAuthenticating(false);
       onLoginSuccess();
-    }, 900);
+    } catch (err: any) {
+      setIsAuthenticating(false);
+      setError(err.message || 'Microsoft 365 SSO Authentication failed.');
+    }
   };
 
-  const handleGoogleSSO = () => {
+  const handleGoogleSSO = async () => {
     setIsAuthenticating(true);
     setAuthProviderText('Authenticating with Google Workspace...');
-    setTimeout(() => {
-      authService.loginWithM365(email || 'user@gmail.com');
+    try {
+      await authService.loginWithM365(email || 'sanelisiwe.sileku@spihead.com');
       setIsAuthenticating(false);
       onLoginSuccess();
-    }, 900);
+    } catch (err: any) {
+      setIsAuthenticating(false);
+      setError(err.message || 'Google Workspace SSO Authentication failed.');
+    }
   };
 
   return (

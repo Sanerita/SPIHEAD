@@ -143,38 +143,39 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
   };
 
   // Final Registration Action
-  const handleFinalRegister = (e: React.FormEvent) => {
+  const handleFinalRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (mfaPasscode && mfaPasscode.length > 0 && mfaPasscode.length < 4) {
-      setError('Please enter a valid 6-digit authenticator code or leave empty for auto-setup.');
+    if (mfaPasscode && mfaPasscode.length > 0 && mfaPasscode.length !== 6) {
+      setError('Please enter a valid 6-digit authenticator passcode.');
       return;
     }
 
     setIsSubmitting(true);
-    setSubmissionProgress('Provisioning isolated tenant database...');
+    setSubmissionProgress('Provisioning enterprise tenant database & validating credentials...');
 
-    setTimeout(() => {
-      setSubmissionProgress('Configuring AI Lead Energy engine & multi-currency PPP settings...');
-      setTimeout(() => {
-        // Upgrade plan in subscription service
-        subscriptionService.upgradeOrChangePlan(selectedPlan, 'annual');
+    try {
+      // Upgrade plan in subscription service
+      subscriptionService.upgradeOrChangePlan(selectedPlan, 'annual');
 
-        // Register user in auth service
-        authService.register({
-          fullName,
-          email: workEmail,
-          companyName,
-          companySize,
-          role: rolePersona,
-          selectedPlan
-        });
+      // Register user in backend auth service
+      await authService.register({
+        fullName,
+        email: workEmail,
+        companyName,
+        companySize,
+        role: rolePersona,
+        selectedPlan,
+        password
+      });
 
-        setIsSubmitting(false);
-        onSignUpSuccess();
-      }, 800);
-    }, 800);
+      setIsSubmitting(false);
+      onSignUpSuccess();
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setError(err.message || 'Failed to register enterprise workspace. Please check your details.');
+    }
   };
 
   // One-Click OAuth SSO Sign Up
