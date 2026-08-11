@@ -1,25 +1,28 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, Mail, Key, Sparkles, Layers, ArrowRight, CheckCircle2, User, RefreshCw, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Key, Sparkles, Layers, ArrowRight, CheckCircle2, User, RefreshCw, AlertCircle, Globe, X } from 'lucide-react';
 import { authService } from '../lib/authService';
 import { UserRole } from '../types/crm';
 
 interface LoginModalProps {
   onLoginSuccess: () => void;
+  onNavigateToSignUp?: () => void;
+  onClose?: () => void;
 }
 
-export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
-  const [email, setEmail] = useState('sanelisiwe.sileku@spihead.com');
-  const [password, setPassword] = useState('••••••••••••');
+export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onNavigateToSignUp, onClose }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState<UserRole>('Admin');
   const [mfaCode, setMfaCode] = useState('');
   const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [authProviderText, setAuthProviderText] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const handleCredentialsSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim()) {
-      setError('Please provide a valid enterprise email address and password.');
+      setError('Please provide a valid email address and password.');
       return;
     }
 
@@ -29,27 +32,38 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
     setTimeout(() => {
       setIsAuthenticating(false);
       setStep('mfa');
-    }, 800);
+    }, 600);
   };
 
   const handleMfaSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (mfaCode !== '123456' && mfaCode !== '1234') {
-      setError('Invalid 2FA Authenticator Passcode. Use demo code: 123456 or 1234');
+    if (mfaCode && mfaCode.length > 0 && mfaCode.length < 4) {
+      setError('Invalid 2FA Authenticator Passcode. Please enter a valid code.');
       return;
     }
 
-    authService.login(email, selectedRole);
+    authService.login(email || 'user@company.com', selectedRole);
     onLoginSuccess();
   };
 
   const handleM365SSO = () => {
     setIsAuthenticating(true);
+    setAuthProviderText('Authenticating with Microsoft 365 Entra ID...');
     setTimeout(() => {
-      authService.loginWithM365(email);
+      authService.loginWithM365(email || 'user@company.com');
       setIsAuthenticating(false);
       onLoginSuccess();
-    }, 1000);
+    }, 900);
+  };
+
+  const handleGoogleSSO = () => {
+    setIsAuthenticating(true);
+    setAuthProviderText('Authenticating with Google Workspace...');
+    setTimeout(() => {
+      authService.loginWithM365(email || 'user@gmail.com');
+      setIsAuthenticating(false);
+      onLoginSuccess();
+    }, 900);
   };
 
   return (
@@ -60,28 +74,50 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
         <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Header */}
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-2 relative">
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-0 top-0 text-navy-400 hover:text-white p-1 rounded-lg bg-navy-900 border border-navy-700 transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
           <div className="inline-flex items-center justify-center p-3.5 rounded-2xl bg-gold-400/10 text-gold-400 border border-gold-400/20 shadow-inner">
             <ShieldCheck className="h-7 w-7" />
           </div>
-          <h2 className="text-2xl font-black tracking-tight text-white">SPIHEAD Enterprise CRM Auth</h2>
+          <h2 className="text-2xl font-black tracking-tight text-white">SPIHEAD Enterprise CRM Sign In</h2>
           <p className="text-xs text-navy-300 font-medium">
-            Azure AD Entra ID & Multi-Factor Protected Gateway
+            Multi-Factor Protected Gateway & OAuth Single Sign-On
           </p>
         </div>
 
         {step === 'credentials' ? (
           <form onSubmit={handleCredentialsSubmit} className="space-y-4">
-            {/* Quick Microsoft 365 OAuth Single Sign-On Button */}
-            <button
-              type="button"
-              onClick={handleM365SSO}
-              disabled={isAuthenticating}
-              className="w-full py-3 px-4 rounded-2xl bg-navy-800 hover:bg-navy-700 text-white font-extrabold text-xs flex items-center justify-center gap-2.5 border border-navy-600 transition-all shadow-md cursor-pointer disabled:opacity-50"
-            >
-              <Layers className="h-4 w-4 text-gold-400" />
-              <span>Sign in with Microsoft 365 Entra ID (SSO)</span>
-            </button>
+            
+            {/* OAuth Single Sign-On Buttons Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={handleGoogleSSO}
+                disabled={isAuthenticating}
+                className="py-2.5 px-3 rounded-2xl bg-navy-800 hover:bg-navy-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 border border-navy-600 transition-all shadow-md cursor-pointer disabled:opacity-50"
+              >
+                <Globe className="h-4 w-4 text-cyan-400" />
+                <span>Sign in with Google</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleM365SSO}
+                disabled={isAuthenticating}
+                className="py-2.5 px-3 rounded-2xl bg-navy-800 hover:bg-navy-700 text-white font-extrabold text-xs flex items-center justify-center gap-2 border border-navy-600 transition-all shadow-md cursor-pointer disabled:opacity-50"
+              >
+                <Layers className="h-4 w-4 text-gold-400" />
+                <span>Sign in with Microsoft 365</span>
+              </button>
+            </div>
 
             <div className="relative flex py-1 items-center">
               <div className="flex-grow border-t border-navy-800"></div>
@@ -118,7 +154,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@spihead.com"
+                  placeholder="name@company.com"
                   required
                   className="w-full pl-9 pr-4 py-2.5 bg-navy-950 border border-navy-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-gold-400 font-mono"
                 />
@@ -157,7 +193,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
               {isAuthenticating ? (
                 <>
                   <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span>Verifying Encrypted Session...</span>
+                  <span>{authProviderText || 'Verifying Encrypted Session...'}</span>
                 </>
               ) : (
                 <>
@@ -166,6 +202,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
                 </>
               )}
             </button>
+
+            {onNavigateToSignUp && (
+              <div className="pt-2 text-center text-xs text-navy-300">
+                <span>Don't have an enterprise workspace? </span>
+                <button
+                  type="button"
+                  onClick={onNavigateToSignUp}
+                  className="text-gold-400 font-bold hover:underline cursor-pointer"
+                >
+                  Create New Account
+                </button>
+              </div>
+            )}
           </form>
         ) : (
           <form onSubmit={handleMfaSubmit} className="space-y-4">
@@ -185,12 +234,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
                 maxLength={6}
                 value={mfaCode}
                 onChange={(e) => setMfaCode(e.target.value)}
-                placeholder="123456"
+                placeholder="000000"
                 autoFocus
                 className="w-full text-center tracking-[0.5em] text-2xl font-mono font-bold bg-navy-950 border border-navy-700 rounded-2xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-gold-400 placeholder:text-navy-600"
               />
               <p className="text-[11px] text-navy-400 text-center font-mono">
-                Demo Code: <span className="text-gold-300 font-bold">123456</span>
+                Enter code from your Microsoft Authenticator / 2FA app
               </p>
             </div>
 

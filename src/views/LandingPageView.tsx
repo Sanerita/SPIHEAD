@@ -11,6 +11,7 @@ import {
   Globe,
   Check,
   Building2,
+  User,
   UserCheck,
   Clock,
   TrendingUp,
@@ -33,11 +34,15 @@ import { PlanTier, BillingInterval } from '../types/subscription';
 interface LandingPageViewProps {
   onEnterApp: () => void;
   onOpenPricing: (planTier?: PlanTier) => void;
+  onOpenSignUp?: (planTier?: PlanTier) => void;
+  onOpenSignIn?: () => void;
 }
 
 export const LandingPageView: React.FC<LandingPageViewProps> = ({
   onEnterApp,
-  onOpenPricing
+  onOpenPricing,
+  onOpenSignUp,
+  onOpenSignIn
 }) => {
   const [billingInterval, setBillingInterval] = useState<BillingInterval>('annual');
   const [currencyCode, setCurrencyCode] = useState(currencyService.getCurrencyCode());
@@ -103,19 +108,28 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({
 
             <button
               type="button"
+              onClick={onOpenSignIn ? onOpenSignIn : onEnterApp}
+              className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-gold-400 hover:text-gold-300 text-xs font-bold transition-all border border-slate-800 cursor-pointer flex items-center gap-1.5"
+            >
+              <User className="h-3.5 w-3.5 text-gold-400" />
+              Sign In
+            </button>
+
+            <button
+              type="button"
               onClick={onEnterApp}
               className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold transition-all border border-slate-800 cursor-pointer hidden sm:flex items-center gap-1.5"
             >
-              <Play className="h-3.5 w-3.5 text-gold-400" />
+              <Play className="h-3.5 w-3.5 text-slate-400" />
               Live Workspace
             </button>
 
             <button
               type="button"
-              onClick={() => onOpenPricing()}
+              onClick={() => onOpenSignUp ? onOpenSignUp('small-business') : onOpenPricing('small-business')}
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-gold-500 via-amber-400 to-gold-400 text-navy-950 font-black text-xs hover:brightness-110 transition-all shadow-md shadow-gold-500/20 cursor-pointer flex items-center gap-1.5"
             >
-              Get Started
+              Sign Up Free
               <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -144,7 +158,7 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
             <button
               type="button"
-              onClick={() => onOpenPricing()}
+              onClick={() => onOpenSignUp ? onOpenSignUp('small-business') : onOpenPricing('small-business')}
               className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-gradient-to-r from-gold-500 via-amber-400 to-gold-400 text-navy-950 font-black text-xs hover:brightness-110 transition-all shadow-xl shadow-gold-500/20 cursor-pointer flex items-center justify-center gap-2"
             >
               <Zap className="h-4 w-4 fill-navy-950" />
@@ -447,7 +461,7 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({
                   <div className="pt-8 mt-6 border-t border-slate-800 space-y-2">
                     <button
                       type="button"
-                      onClick={() => onOpenPricing(plan.id)}
+                      onClick={() => onOpenSignUp ? onOpenSignUp(plan.id) : onOpenPricing(plan.id)}
                       className={`w-full py-3 px-4 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center justify-center gap-2 ${
                         plan.recommended
                           ? 'bg-gradient-to-r from-gold-500 via-amber-400 to-gold-400 text-navy-950 hover:brightness-110 shadow-md shadow-gold-500/20'

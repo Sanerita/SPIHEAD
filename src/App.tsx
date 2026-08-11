@@ -13,6 +13,7 @@ import { M365HubView } from './views/M365HubView';
 import { SettingsView } from './views/SettingsView';
 import { ProfileView } from './views/ProfileView';
 import { LandingPageView } from './views/LandingPageView';
+import { SignUpView } from './views/SignUpView';
 import { subscriptionService } from './lib/subscriptionService';
 
 import { AddLeadModal } from './components/AddLeadModal';
@@ -29,6 +30,7 @@ import { authService } from './lib/authService';
 export function App() {
   const [currentView, setCurrentView] = useState<string>('landing');
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [signUpPlanTier, setSignUpPlanTier] = useState<any>('small-business');
 
   // Store data states
   const [leads, setLeads] = useState<Lead[]>(crmStore.getLeads());
@@ -314,7 +316,7 @@ export function App() {
       <LandingPageView
         onEnterApp={() => {
           if (!authService.getIsAuthenticated()) {
-            authService.login('sanelisiwe.sileku@spihead.com', 'Admin');
+            authService.login('user@company.com', 'Admin');
           }
           setCurrentView('dashboard');
         }}
@@ -325,11 +327,55 @@ export function App() {
             showToast(`Subscribed to ${plan.name}! Workspace ready.`, 'success');
           }
           if (!authService.getIsAuthenticated()) {
-            authService.login('sanelisiwe.sileku@spihead.com', 'Admin');
+            authService.login('user@company.com', 'Admin');
           }
           setCurrentView('dashboard');
         }}
+        onOpenSignUp={(planTier) => {
+          if (planTier) setSignUpPlanTier(planTier);
+          setCurrentView('signup');
+        }}
+        onOpenSignIn={() => {
+          setCurrentView('login');
+        }}
       />
+    );
+  }
+
+  if (currentView === 'signup') {
+    return (
+      <SignUpView
+        initialPlan={signUpPlanTier}
+        onSignUpSuccess={() => {
+          setCurrentView('dashboard');
+          showToast('Workspace initialized! Welcome to SPIHEAD CRM.', 'success');
+        }}
+        onNavigateToLogin={() => {
+          setCurrentView('login');
+        }}
+        onNavigateToLanding={() => {
+          setCurrentView('landing');
+        }}
+      />
+    );
+  }
+
+  if (currentView === 'login') {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <LoginModal
+          onLoginSuccess={() => {
+            setCurrentView('dashboard');
+            showToast('Authenticated successfully! Welcome back.', 'success');
+          }}
+          onNavigateToSignUp={() => {
+            setCurrentView('signup');
+          }}
+          onClose={() => {
+            setCurrentView('landing');
+          }}
+        />
+      </div>
     );
   }
 
@@ -338,7 +384,10 @@ export function App() {
       
       {/* Auth Screen Modal if user is logged out */}
       {!isAuthenticated && (
-        <LoginModal onLoginSuccess={() => showToast('Authenticated & Session Initialized', 'success')} />
+        <LoginModal
+          onLoginSuccess={() => showToast('Authenticated & Session Initialized', 'success')}
+          onNavigateToSignUp={() => setCurrentView('signup')}
+        />
       )}
 
       {/* Lock Screen Modal if workspace is locked */}

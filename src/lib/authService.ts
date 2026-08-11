@@ -176,6 +176,43 @@ class AuthService {
     return true;
   }
 
+  public register(details: {
+    fullName: string;
+    email: string;
+    companyName: string;
+    companySize?: string;
+    role?: UserRole;
+    selectedPlan?: string;
+  }): boolean {
+    const newUser: AppUser = {
+      id: 'usr_' + Date.now().toString(36),
+      email: details.email,
+      name: details.fullName,
+      role: details.role || 'Admin',
+      mfaEnabled: true,
+      pinCode: '1234',
+      lastLoginAt: new Date().toISOString(),
+      jobTitle: `${details.companyName} Workspace Founder / Admin`,
+      department: 'Executive Operations',
+      ipAddress: '197.189.204.12 (TLS 1.3 Verified)'
+    };
+
+    this.currentUser = newUser;
+    this.isAuthenticated = true;
+    this.isLocked = false;
+
+    this.logAuditEvent(
+      'New Account Workspace Registration',
+      'Authentication',
+      'Info',
+      `New enterprise workspace created for "${details.companyName}" by ${details.fullName} (${details.email}). Plan: ${details.selectedPlan || 'Small Business'}`
+    );
+
+    this.saveState();
+    this.notify();
+    return true;
+  }
+
   public loginWithM365(email?: string): boolean {
     this.currentUser = {
       ...DEFAULT_USER,
