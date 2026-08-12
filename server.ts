@@ -6,7 +6,8 @@ import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import { db, sql } from "./src/db/index.js";
-import { users } from "./src/db/schema.js";
+import { users, leads, meetings, activities } from "./src/db/schema.js";
+import { initDbTables } from "./src/db/init.js";
 import { eq } from "drizzle-orm";
 
 // In-Memory / File-Persisted User Store
@@ -90,6 +91,9 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Initialize Neon Postgres database tables automatically
+  await initDbTables();
+
   // --- Backend Authentication Endpoints ---
 
   // 1. Sign Up Endpoint
@@ -98,26 +102,26 @@ async function startServer() {
       const { fullName, email, password, companyName, companySize, role, selectedPlan } = req.body;
 
       if (!email || !email.includes("@")) {
-        return res.status(400).json({ success: false, error: "A valid email address is required." });
+        return res.status(400).json({ success: false, error: "A valid work email address is required." });
       }
 
-      if (!password || password.length < 8) {
-        return res.status(400).json({ success: false, error: "Password must be at least 8 characters long." });
+      if (!password || password.length < 6) {
+        return res.status(400).json({ success: false, error: "Password must be at least 6 characters long." });
       }
 
       const cleanEmail = email.trim().toLowerCase();
 
-      // Check DB or memory
+      // Check DB or memory for existing user
       let existingInDb = null;
       try {
         const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
         if (dbUsers.length > 0) existingInDb = dbUsers[0];
       } catch (err) {
-        console.warn("DB user check failed, falling back to memory:", err);
+        console.warn("DB user check failed:", err);
       }
 
       if (existingInDb || usersDb.has(cleanEmail)) {
-        return res.status(400).json({ success: false, error: "An account with this email address already exists. Please sign in instead." });
+        return res.status(400).json({ success: false, error: `An account with ${cleanEmail} already exists. Please sign in instead.` });
       }
 
       const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
@@ -127,18 +131,18 @@ async function startServer() {
       const newUser: ServerUser = {
         id: userId,
         email: cleanEmail,
-        name: fullName?.trim() || "New User",
+        name: fullName?.trim() || "Workspace Director",
         passwordHash,
         role: assignedRole,
         authRole: assignedRole,
         mfaEnabled: true,
         pinCode: "1234",
         lastLoginAt: new Date().toISOString(),
-        jobTitle: `${companyName || "Enterprise"} Workspace Admin`,
+        jobTitle: `${companyName || "Enterprise"} Workspace Administrator`,
         department: "Executive Operations",
         ipAddress: req.ip || "127.0.0.1",
-        companyName: companyName?.trim() || "Organization",
-        companySize: companySize || "1-10",
+        companyName: companyName?.trim() || "Enterprise Workspace",
+        companySize: companySize || "11-50",
         selectedPlan: selectedPlan || "small-business"
       };
 
@@ -159,7 +163,7 @@ async function startServer() {
           selectedPlan: newUser.selectedPlan,
         });
       } catch (dbErr) {
-        console.warn("Failed to persist user to Neon DB:", dbErr);
+        console.warn("Persist user to Neon DB warning:", dbErr);
       }
 
       // Generate Session Token
@@ -175,11 +179,11 @@ async function startServer() {
         success: true,
         token,
         user: publicProfile,
-        message: "Account created successfully."
+        message: "Enterprise workspace account created successfully."
       });
     } catch (err: any) {
       console.error("Error in /api/auth/signup:", err);
-      return res.status(500).json({ success: false, error: "Internal server error during account creation." });
+      return res.status(500).json({ success: false, error: "Internal server error during account registration." });
     }
   });
 
@@ -189,7 +193,7 @@ async function startServer() {
       const { email, password, role } = req.body;
 
       if (!email || !email.includes("@")) {
-        return res.status(400).json({ success: false, error: "Please enter a valid enterprise email." });
+        return res.status(400).json({ success: false, error: "Please enter a valid enterprise email address." });
       }
 
       const cleanEmail = email.trim().toLowerCase();
@@ -224,57 +228,20 @@ async function startServer() {
         }
       }
 
-      // If user still doesn't exist, check password rules and create account if valid
+      // If user does not exist in DB or memory
       if (!user) {
-        if (!password || password.length < 6) {
-          return res.status(401).json({ success: false, error: "Account not found. Please check your email or click Sign Up." });
-        }
-        // Provision user account for new valid login
-        const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
-        const userId = "usr_" + Date.now().toString(36);
-        const loginRole = role || "Admin";
-        user = {
-          id: userId,
-          email: cleanEmail,
-          name: cleanEmail.split("@")[0].replace(".", " ").replace(/\b\w/g, (l) => l.toUpperCase()),
-          passwordHash,
-          role: loginRole,
-          authRole: loginRole,
-          mfaEnabled: true,
-          pinCode: "1234",
-          lastLoginAt: new Date().toISOString(),
-          jobTitle: "Sales Director",
-          department: "Sales Operations",
-          ipAddress: req.ip || "127.0.0.1",
-          companyName: "Enterprise Workspace",
-          selectedPlan: "small-business"
-        };
-        usersDb.set(cleanEmail, user);
+        return res.status(401).json({ success: false, error: "Account not found. Please click 'Sign Up' to create your workspace." });
+      }
 
-        try {
-          await db.insert(users).values({
-            id: userId,
-            name: user.name,
-            email: cleanEmail,
-            role: loginRole,
-            company: user.companyName,
-            passwordHash: passwordHash,
-            jobTitle: user.jobTitle,
-            department: user.department,
-            selectedPlan: user.selectedPlan,
-          });
-        } catch (e) {}
-      } else {
-        // Validate password
-        if (password) {
-          const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
-          if (passwordHash !== user.passwordHash && password !== "Password123!" && password.length < 6) {
-            return res.status(401).json({ success: false, error: "Invalid password provided for this account." });
-          }
+      // Validate password against user's passwordHash or demo password
+      if (password) {
+        const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
+        if (passwordHash !== user.passwordHash && password !== "Password123!") {
+          return res.status(401).json({ success: false, error: "Incorrect password provided for this account." });
         }
       }
 
-      // Update last login timestamp and role
+      // Update last login timestamp and optional role override
       user.lastLoginAt = new Date().toISOString();
       if (role) {
         user.role = role;
@@ -338,6 +305,74 @@ async function startServer() {
       activeSessions.delete(token);
     }
     return res.json({ success: true, message: "Logged out successfully." });
+  });
+
+  // --- REST API Endpoints for CRM Leads ---
+
+  // Get Leads
+  app.get("/api/leads", async (req, res) => {
+    try {
+      const dbLeads = await db.select().from(leads);
+      return res.json({ success: true, leads: dbLeads });
+    } catch (err) {
+      console.warn("DB leads query warning:", err);
+      return res.json({ success: true, leads: [] });
+    }
+  });
+
+  // Create Lead
+  app.post("/api/leads", async (req, res) => {
+    try {
+      const leadData = req.body;
+      const leadId = leadData.id || `lead_${Date.now()}`;
+      await db.insert(leads).values({
+        id: leadId,
+        userId: leadData.userId || 'usr_001',
+        name: leadData.name || 'Unnamed Contact',
+        email: leadData.email,
+        phone: leadData.phone,
+        company: leadData.company,
+        budget: leadData.budget || 0,
+        status: leadData.status || 'New',
+        score: leadData.score || 50,
+        urgency: leadData.urgency || false,
+        engagement: leadData.engagement || 1,
+        replyCount: leadData.replyCount || 0,
+        notes: leadData.notes,
+        industry: leadData.industry,
+        tags: Array.isArray(leadData.tags) ? JSON.stringify(leadData.tags) : leadData.tags,
+      });
+      return res.json({ success: true, id: leadId });
+    } catch (err: any) {
+      console.warn("Failed to create lead in DB:", err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Update Lead Status / Details
+  app.put("/api/leads/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      await db.update(leads).set({
+        ...updates,
+        tags: Array.isArray(updates.tags) ? JSON.stringify(updates.tags) : updates.tags,
+      }).where(eq(leads.id, id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Delete Lead
+  app.delete("/api/leads/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await db.delete(leads).where(eq(leads.id, id));
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // Helper to initialize Gemini client lazily per request

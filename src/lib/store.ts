@@ -518,6 +518,43 @@ export class CRMStore {
 
   constructor() {
     this.loadFromStorage();
+    this.syncFromBackend();
+  }
+
+  public async syncFromBackend() {
+    try {
+      const res = await fetch('/api/leads');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && Array.isArray(data.leads) && data.leads.length > 0) {
+          const loadedLeads: Lead[] = data.leads.map((l: any) => ({
+            id: l.id,
+            name: l.name,
+            email: l.email || '',
+            phone: l.phone || '',
+            company: l.company || '',
+            budget: l.budget || 0,
+            status: (l.status as LeadStatus) || 'New',
+            score: l.score || 50,
+            urgency: !!l.urgency,
+            engagement: l.engagement || 1,
+            replyCount: l.replyCount || 0,
+            notes: l.notes || '',
+            industry: l.industry || 'Technology',
+            tags: typeof l.tags === 'string' ? JSON.parse(l.tags || '[]') : (Array.isArray(l.tags) ? l.tags : []),
+            createdAt: l.createdAt || new Date().toISOString(),
+            updatedAt: l.updatedAt || new Date().toISOString(),
+            lastContact: l.updatedAt || null,
+            m365Synced: true,
+          }));
+          this.leads = loadedLeads;
+          this.saveLeads();
+          this.notify();
+        }
+      }
+    } catch (err) {
+      console.warn("Could not sync leads from backend:", err);
+    }
   }
 
   private loadFromStorage() {
@@ -623,6 +660,13 @@ export class CRMStore {
     this.leads.unshift(newLead);
     this.saveLeads();
 
+    // Persist to Neon Postgres backend
+    fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newLead)
+    }).catch(err => console.warn('Lead DB persist error:', err));
+
     this.addActivity({
       type: 'lead_added',
       message: `Added new lead: ${newLead.name} (${newLead.company})`,
@@ -650,6 +694,13 @@ export class CRMStore {
 
     this.saveLeads();
     this.notify();
+
+    fetch(`/api/leads/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    }).catch(err => console.warn('Lead DB update error:', err));
+
     return this.leads[index];
   }
 
@@ -676,6 +727,10 @@ export class CRMStore {
     const lead = this.getLeadById(id);
     this.leads = this.leads.filter((l) => l.id !== id);
     this.saveLeads();
+
+    fetch(`/api/leads/${id}`, {
+      method: 'DELETE'
+    }).catch(err => console.warn('Lead DB delete error:', err));
 
     if (lead) {
       this.addActivity({

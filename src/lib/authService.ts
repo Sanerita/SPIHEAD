@@ -261,67 +261,43 @@ class AuthService {
   public async login(email: string, role: UserRole = 'Admin', password?: string): Promise<boolean> {
     const cleanEmail = sanitizeInput(email.trim().toLowerCase());
     
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, password, role })
+    });
+
+    const text = await res.text();
+    let data: any = null;
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, password, role })
-      });
+      data = JSON.parse(text);
+    } catch {
+      // Non-JSON response received from server or proxy
+    }
 
-      const text = await res.text();
-      let data: any = null;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        // Non-JSON response received from server or proxy
-      }
-
-      if (res.ok && data && data.success) {
-        this.sessionToken = data.token;
-        this.currentUser = data.user;
-        this.isAuthenticated = true;
-        this.isLocked = false;
-
-        this.logAuditEvent(
-          'User Authentication Sign-In',
-          'Authentication',
-          'Info',
-          `Session authorized for ${cleanEmail} with role [${role}]`
-        );
-
-        this.saveState();
-        this.notify();
-        return true;
-      }
-
-      if (data && data.error) {
-        throw new Error(data.error);
-      }
-
-      throw new Error('API_UNREACHABLE');
-    } catch (err: any) {
-      // If error message is an explicit validation/auth message from server, throw it
-      if (err.message && err.message !== 'API_UNREACHABLE' && !err.message.includes('fetch') && !err.message.includes('JSON') && !err.message.includes('Unexpected token')) {
-        throw err;
-      }
-
-      // Fallback local session authorization
-      this.currentUser = {
-        ...DEFAULT_USER,
-        email: cleanEmail || DEFAULT_USER.email,
-        name: cleanEmail ? cleanEmail.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase()) : DEFAULT_USER.name,
-        role: role,
-        authRole: role,
-        lastLoginAt: new Date().toISOString()
-      };
-      this.sessionToken = 'tok_fallback_' + Date.now();
+    if (res.ok && data && data.success) {
+      this.sessionToken = data.token;
+      this.currentUser = data.user;
       this.isAuthenticated = true;
       this.isLocked = false;
+
+      this.logAuditEvent(
+        'User Authentication Sign-In',
+        'Authentication',
+        'Info',
+        `Session authorized for ${cleanEmail} with role [${role}]`
+      );
 
       this.saveState();
       this.notify();
       return true;
     }
+
+    if (data && data.error) {
+      throw new Error(data.error);
+    }
+
+    throw new Error('Authentication failed. Please check your email and password.');
   }
 
   public async register(details: {
@@ -337,81 +313,51 @@ class AuthService {
     const cleanEmail = sanitizeInput(details.email.trim().toLowerCase());
     const cleanCompany = sanitizeInput(details.companyName.trim());
 
-    try {
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: cleanName,
-          email: cleanEmail,
-          companyName: cleanCompany,
-          companySize: details.companySize,
-          role: details.role || 'Admin',
-          selectedPlan: details.selectedPlan,
-          password: details.password || 'Password123!'
-        })
-      });
-
-      const text = await res.text();
-      let data: any = null;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        // Non-JSON response received
-      }
-
-      if (res.ok && data && data.success) {
-        this.sessionToken = data.token;
-        this.currentUser = data.user;
-        this.isAuthenticated = true;
-        this.isLocked = false;
-
-        this.logAuditEvent(
-          'New Account Workspace Registration',
-          'Authentication',
-          'Info',
-          `New enterprise workspace created for "${cleanCompany}" by ${cleanName} (${cleanEmail}). Plan: ${details.selectedPlan || 'Small Business'}`
-        );
-
-        this.saveState();
-        this.notify();
-        return true;
-      }
-
-      if (data && data.error) {
-        throw new Error(data.error);
-      }
-
-      throw new Error('API_UNREACHABLE');
-    } catch (err: any) {
-      if (err.message && err.message !== 'API_UNREACHABLE' && !err.message.includes('fetch') && !err.message.includes('JSON') && !err.message.includes('Unexpected token')) {
-        throw err;
-      }
-
-      const assignedRole = details.role || 'Admin';
-      const newUser: AppUser = {
-        id: 'usr_' + Date.now().toString(36),
+    const res = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fullName: cleanName,
         email: cleanEmail,
-        name: cleanName,
-        role: assignedRole,
-        authRole: assignedRole,
-        mfaEnabled: true,
-        pinCode: '1234',
-        lastLoginAt: new Date().toISOString(),
-        jobTitle: `${cleanCompany} Workspace Founder / Admin`,
-        department: 'Executive Operations',
-        ipAddress: '197.189.204.12'
-      };
+        companyName: cleanCompany,
+        companySize: details.companySize,
+        role: details.role || 'Admin',
+        selectedPlan: details.selectedPlan,
+        password: details.password || 'Password123!'
+      })
+    });
 
-      this.sessionToken = 'tok_fallback_' + Date.now();
-      this.currentUser = newUser;
+    const text = await res.text();
+    let data: any = null;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Non-JSON response received
+    }
+
+    if (res.ok && data && data.success) {
+      this.sessionToken = data.token;
+      this.currentUser = data.user;
       this.isAuthenticated = true;
       this.isLocked = false;
+
+      this.logAuditEvent(
+        'New Account Workspace Registration',
+        'Authentication',
+        'Info',
+        `New enterprise workspace created for "${cleanCompany}" by ${cleanName} (${cleanEmail}). Plan: ${details.selectedPlan || 'Small Business'}`
+      );
 
       this.saveState();
       this.notify();
       return true;
     }
+
+    if (data && data.error) {
+      throw new Error(data.error);
+    }
+
+    throw new Error('Registration failed. Please check your information and try again.');
   }
 
   public async loginWithM365(email?: string): Promise<boolean> {
