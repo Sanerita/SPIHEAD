@@ -6,7 +6,12 @@ export const users = pgTable('users', {
   email: text('email').notNull().unique(),
   role: text('role').notNull(),
   company: text('company'),
+  passwordHash: text('password_hash'),
+  jobTitle: text('job_title'),
+  department: text('department'),
+  selectedPlan: text('selected_plan'),
   createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
 
 export const leads = pgTable('leads', {

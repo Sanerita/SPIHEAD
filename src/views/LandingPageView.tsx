@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { currencyService } from '../lib/currencyService';
 import { subscriptionService, SAAS_PLANS } from '../lib/subscriptionService';
+import { authService } from '../lib/authService';
 import { CurrencySelector } from '../components/CurrencySelector';
 import { PlanTier, BillingInterval } from '../types/subscription';
 
@@ -106,32 +107,49 @@ export const LandingPageView: React.FC<LandingPageViewProps> = ({
           <div className="flex items-center gap-3">
             <CurrencySelector compact />
 
-            <button
-              type="button"
-              onClick={onOpenSignIn ? onOpenSignIn : onEnterApp}
-              className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-gold-400 hover:text-gold-300 text-xs font-bold transition-all border border-slate-800 cursor-pointer flex items-center gap-1.5"
-            >
-              <User className="h-3.5 w-3.5 text-gold-400" />
-              Sign In
-            </button>
+            {authService.getIsAuthenticated() ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onEnterApp}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-gold-500 via-amber-400 to-gold-400 text-navy-950 font-black text-xs hover:brightness-110 transition-all shadow-md shadow-gold-500/20 cursor-pointer flex items-center gap-2"
+                >
+                  <Zap className="h-3.5 w-3.5 fill-navy-950" />
+                  <span>Go to Workspace ({authService.getCurrentUser()?.name || 'My Account'})</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={onEnterApp}
-              className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-bold transition-all border border-slate-800 cursor-pointer hidden sm:flex items-center gap-1.5"
-            >
-              <Play className="h-3.5 w-3.5 text-slate-400" />
-              Live Workspace
-            </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    authService.logout();
+                    window.location.reload();
+                  }}
+                  className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-semibold transition-all border border-slate-800 cursor-pointer"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={onOpenSignIn ? onOpenSignIn : onEnterApp}
+                  className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-gold-400 hover:text-gold-300 text-xs font-bold transition-all border border-slate-800 cursor-pointer flex items-center gap-1.5"
+                >
+                  <User className="h-3.5 w-3.5 text-gold-400" />
+                  Sign In
+                </button>
 
-            <button
-              type="button"
-              onClick={() => onOpenSignUp ? onOpenSignUp('small-business') : onOpenPricing('small-business')}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-gold-500 via-amber-400 to-gold-400 text-navy-950 font-black text-xs hover:brightness-110 transition-all shadow-md shadow-gold-500/20 cursor-pointer flex items-center gap-1.5"
-            >
-              Sign Up Free
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenSignUp ? onOpenSignUp('small-business') : onOpenPricing('small-business')}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-gold-500 via-amber-400 to-gold-400 text-navy-950 font-black text-xs hover:brightness-110 transition-all shadow-md shadow-gold-500/20 cursor-pointer flex items-center gap-1.5"
+                >
+                  Sign Up Free
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </header>

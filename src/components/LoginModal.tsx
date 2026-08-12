@@ -19,9 +19,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onNaviga
   const [authProviderText, setAuthProviderText] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const handleCredentialsSubmit = (e: React.FormEvent) => {
+  const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) {
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password.trim()) {
       setError('Please provide a valid email address and password.');
       return;
     }
@@ -29,10 +30,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onNaviga
     setIsAuthenticating(true);
     setError(null);
 
-    setTimeout(() => {
+    try {
+      await authService.login(cleanEmail, selectedRole, password);
       setIsAuthenticating(false);
-      setStep('mfa');
-    }, 600);
+      onLoginSuccess();
+    } catch (err: any) {
+      setIsAuthenticating(false);
+      setError(err.message || 'Authentication failed. Please check your credentials or create an account.');
+    }
+  };
+
+  const handleQuickDemoFill = () => {
+    setEmail('sanelisiwe.sileku@spihead.com');
+    setPassword('Password123!');
+    setSelectedRole('Admin');
+    setError(null);
   };
 
   const handleMfaSubmit = async (e: React.FormEvent) => {
@@ -199,6 +211,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onNaviga
               </div>
             )}
 
+            <div className="flex items-center justify-between text-xs text-navy-300 pt-1">
+              <button
+                type="button"
+                onClick={handleQuickDemoFill}
+                className="text-gold-400/90 hover:text-gold-300 font-semibold text-[11px] hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <Sparkles className="h-3 w-3 text-gold-400" />
+                <span>Autofill Demo Account</span>
+              </button>
+            </div>
+
             <button
               type="submit"
               disabled={isAuthenticating}
@@ -207,11 +230,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onNaviga
               {isAuthenticating ? (
                 <>
                   <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span>{authProviderText || 'Verifying Encrypted Session...'}</span>
+                  <span>{authProviderText || 'Authenticating & Accessing Workspace...'}</span>
                 </>
               ) : (
                 <>
-                  <span>Proceed to 2FA Multi-Factor Verification</span>
+                  <span>Sign In & Enter Workspace</span>
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}

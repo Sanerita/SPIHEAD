@@ -1,4 +1,6 @@
 import { AppUser, UserRole, SecurityAuditLog, SecuritySettings } from '../types/crm';
+import { companyService } from './companyService';
+import { m365Service } from './m365Service';
 
 /**
  * Secure Input Sanitizer to prevent XSS script injection across CRM forms
@@ -174,10 +176,32 @@ class AuthService {
     this.notify();
   }
 
+  private syncWorkspaceContext() {
+    if (!this.currentUser) return;
+    try {
+      const compName = (this.currentUser as any).companyName || (this.currentUser as any).company || `${this.currentUser.name}'s Workspace`;
+      companyService.saveProfile({ companyName: compName });
+      const currentM365 = m365Service.getAccount();
+      if (currentM365) {
+        m365Service.saveAccount({
+          ...currentM365,
+          displayName: this.currentUser.name,
+          userPrincipalName: this.currentUser.email,
+          email: this.currentUser.email,
+          jobTitle: this.currentUser.jobTitle || 'Workspace Administrator',
+          companyName: compName
+        });
+      }
+    } catch (e) {
+      console.warn('Workspace context sync warning:', e);
+    }
+  }
+
   private saveState() {
     try {
       if (this.currentUser) {
         localStorage.setItem('spihead_auth_user', JSON.stringify(this.currentUser));
+        this.syncWorkspaceContext();
       } else {
         localStorage.removeItem('spihead_auth_user');
       }
