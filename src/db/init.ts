@@ -44,6 +44,35 @@ export async function initDbTables() {
       );
     `;
 
+    // Migration queries for existing tables missing new columns
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title TEXT;`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT;`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS selected_plan TEXT;`;
+
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS user_id TEXT;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS budget INTEGER DEFAULT 0;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'New';`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS score INTEGER DEFAULT 50;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS urgency BOOLEAN DEFAULT false;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS engagement INTEGER DEFAULT 1;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS reply_count INTEGER DEFAULT 0;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS notes TEXT;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS industry TEXT;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS tags TEXT;`;
+
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS user_id TEXT;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS lead_id TEXT;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS lead_name TEXT;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS lead_email TEXT;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS duration INTEGER DEFAULT 30;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Scheduled';`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS teams_join_url TEXT;`;
+
+    await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS user_id TEXT;`;
+    await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS lead_id TEXT;`;
+    await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS lead_name TEXT;`;
+
     await sql`
       CREATE TABLE IF NOT EXISTS meetings (
         id TEXT PRIMARY KEY,
