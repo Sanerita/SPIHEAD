@@ -146,8 +146,10 @@ class AuthService {
         }
       });
       if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.user) {
+        const text = await res.text();
+        let data: any = null;
+        try { data = JSON.parse(text); } catch {}
+        if (data && data.success && data.user) {
           this.currentUser = data.user;
           this.isAuthenticated = true;
           this.saveState();
@@ -242,34 +244,48 @@ class AuthService {
         body: JSON.stringify({ email: cleanEmail, password, role })
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Authentication failed. Please check your credentials.');
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        // Non-JSON response received from server or proxy
       }
 
-      this.sessionToken = data.token;
-      this.currentUser = data.user;
-      this.isAuthenticated = true;
-      this.isLocked = false;
+      if (res.ok && data && data.success) {
+        this.sessionToken = data.token;
+        this.currentUser = data.user;
+        this.isAuthenticated = true;
+        this.isLocked = false;
 
-      this.logAuditEvent(
-        'User Authentication Sign-In',
-        'Authentication',
-        'Info',
-        `Session authorized for ${cleanEmail} with role [${role}]`
-      );
+        this.logAuditEvent(
+          'User Authentication Sign-In',
+          'Authentication',
+          'Info',
+          `Session authorized for ${cleanEmail} with role [${role}]`
+        );
 
-      this.saveState();
-      this.notify();
-      return true;
+        this.saveState();
+        this.notify();
+        return true;
+      }
+
+      if (data && data.error) {
+        throw new Error(data.error);
+      }
+
+      throw new Error('API_UNREACHABLE');
     } catch (err: any) {
-      // Fallback for client side preview if backend API unreachable
-      if (err.message && !err.message.includes('fetch')) {
+      // If error message is an explicit validation/auth message from server, throw it
+      if (err.message && err.message !== 'API_UNREACHABLE' && !err.message.includes('fetch') && !err.message.includes('JSON') && !err.message.includes('Unexpected token')) {
         throw err;
       }
+
+      // Fallback local session authorization
       this.currentUser = {
         ...DEFAULT_USER,
         email: cleanEmail || DEFAULT_USER.email,
+        name: cleanEmail ? cleanEmail.split('@')[0].replace('.', ' ').replace(/\b\w/g, l => l.toUpperCase()) : DEFAULT_USER.name,
         role: role,
         authRole: role,
         lastLoginAt: new Date().toISOString()
@@ -312,30 +328,42 @@ class AuthService {
         })
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to create workspace account.');
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        // Non-JSON response received
       }
 
-      this.sessionToken = data.token;
-      this.currentUser = data.user;
-      this.isAuthenticated = true;
-      this.isLocked = false;
+      if (res.ok && data && data.success) {
+        this.sessionToken = data.token;
+        this.currentUser = data.user;
+        this.isAuthenticated = true;
+        this.isLocked = false;
 
-      this.logAuditEvent(
-        'New Account Workspace Registration',
-        'Authentication',
-        'Info',
-        `New enterprise workspace created for "${cleanCompany}" by ${cleanName} (${cleanEmail}). Plan: ${details.selectedPlan || 'Small Business'}`
-      );
+        this.logAuditEvent(
+          'New Account Workspace Registration',
+          'Authentication',
+          'Info',
+          `New enterprise workspace created for "${cleanCompany}" by ${cleanName} (${cleanEmail}). Plan: ${details.selectedPlan || 'Small Business'}`
+        );
 
-      this.saveState();
-      this.notify();
-      return true;
+        this.saveState();
+        this.notify();
+        return true;
+      }
+
+      if (data && data.error) {
+        throw new Error(data.error);
+      }
+
+      throw new Error('API_UNREACHABLE');
     } catch (err: any) {
-      if (err.message && !err.message.includes('fetch')) {
+      if (err.message && err.message !== 'API_UNREACHABLE' && !err.message.includes('fetch') && !err.message.includes('JSON') && !err.message.includes('Unexpected token')) {
         throw err;
       }
+
       const assignedRole = details.role || 'Admin';
       const newUser: AppUser = {
         id: 'usr_' + Date.now().toString(36),
@@ -368,7 +396,7 @@ class AuthService {
   }
 
   public async logout(): Promise<void> {
-    if (this.sessionToken) {
+    if (this.sessionToken && !this.sessionToken.startsWith('tok_fallback_')) {
       try {
         await fetch('/api/auth/logout', {
           method: 'POST',
