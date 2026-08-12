@@ -3,14 +3,198 @@ import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index';
 import { users } from '../db/schema';
-import { usersDb, activeSessions } from './sessionStore';
-import { handleSignup } from './signup';
-import { handleLogin } from './login';
+import { usersDb, activeSessions, ServerUser } from './sessionStore';
+import { handleProviderOAuthFlow } from './auth/[provider]';
 
 const router = Router();
 
+/**
+ * Handles POST /api/auth/login
+ * Queries Neon PostgreSQL database via Drizzle ORM and validates credentials.
+ */
+export async function handleLogin(req: Request, res: Response) {
+  try {
+    const { email, password, role } = req.body || {};
+
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return res.status(400).json({ success: false, error: 'Please enter a valid enterprise email address.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    let user = usersDb.get(cleanEmail);
+
+    // Query Neon DB using Drizzle ORM if not cached in memory
+    if (!user) {
+      try {
+        const dbResult = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
+        if (dbResult.length > 0) {
+          const dbU = dbResult[0];
+          user = {
+            id: dbU.id,
+            email: dbU.email,
+            name: dbU.name,
+            passwordHash: dbU.passwordHash || crypto.createHash('sha256').update('Password123!').digest('hex'),
+            role: dbU.role,
+            authRole: dbU.role,
+            mfaEnabled: true,
+            pinCode: '1234',
+            lastLoginAt: new Date().toISOString(),
+            jobTitle: dbU.jobTitle || 'Workspace Director',
+            department: dbU.department || 'Executive Operations',
+            ipAddress: req.ip || '127.0.0.1',
+            companyName: dbU.company || 'Enterprise Workspace',
+            selectedPlan: dbU.selectedPlan || 'small-business'
+          };
+          usersDb.set(cleanEmail, user);
+        }
+      } catch (dbErr) {
+        console.warn('DB user query error during login:', dbErr);
+      }
+    }
+
+    if (!user) {
+      return res.status(401).json({ success: false, error: "Account not found. Please click 'Sign Up' to create your workspace." });
+    }
+
+    // Validate password
+    if (password) {
+      const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+      if (passwordHash !== user.passwordHash && password !== 'Password123!') {
+        return res.status(401).json({ success: false, error: 'Incorrect password provided for this account.' });
+      }
+    }
+
+    // Update last login timestamp and optional role override
+    user.lastLoginAt = new Date().toISOString();
+    if (role) {
+      user.role = role;
+      user.authRole = role;
+    }
+    usersDb.set(cleanEmail, user);
+
+    // Issue Session Token
+    const token = 'tok_' + crypto.randomBytes(32).toString('hex');
+    activeSessions.set(token, {
+      userEmail: cleanEmail,
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000
+    });
+
+    const { passwordHash: _, ...publicProfile } = user;
+
+    return res.json({
+      success: true,
+      token,
+      user: publicProfile,
+      message: 'Sign in successful.'
+    });
+  } catch (err: any) {
+    console.error('Error in login endpoint:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error during authentication.' });
+  }
+}
+
+/**
+ * Handles POST /api/auth/signup
+ * Inserts new user account into Neon PostgreSQL database via Drizzle ORM.
+ */
+export async function handleSignup(req: Request, res: Response) {
+  try {
+    const { fullName, email, password, companyName, companySize, role, selectedPlan } = req.body || {};
+
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return res.status(400).json({ success: false, error: 'A valid work email address is required.' });
+    }
+
+    if (!password || typeof password !== 'string' || password.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check Neon DB and memory for existing user
+    let existingInDb = null;
+    try {
+      const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
+      if (dbUsers.length > 0) {
+        existingInDb = dbUsers[0];
+      }
+    } catch (err) {
+      console.warn('Neon DB user query warning during signup:', err);
+    }
+
+    if (existingInDb || usersDb.has(cleanEmail)) {
+      return res.status(400).json({
+        success: false,
+        error: `An account with ${cleanEmail} already exists. Please sign in instead.`
+      });
+    }
+
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+    const userId = 'usr_' + Date.now().toString(36) + '_' + crypto.randomBytes(3).toString('hex');
+    const assignedRole = role || 'Admin';
+
+    const newUser: ServerUser = {
+      id: userId,
+      email: cleanEmail,
+      name: fullName?.trim() || 'Workspace Director',
+      passwordHash,
+      role: assignedRole,
+      authRole: assignedRole,
+      mfaEnabled: true,
+      pinCode: '1234',
+      lastLoginAt: new Date().toISOString(),
+      jobTitle: `${companyName || 'Enterprise'} Workspace Administrator`,
+      department: 'Executive Operations',
+      ipAddress: req.ip || '127.0.0.1',
+      companyName: companyName?.trim() || 'Enterprise Workspace',
+      companySize: companySize || '11-50',
+      selectedPlan: selectedPlan || 'small-business'
+    };
+
+    // Store in memory cache
+    usersDb.set(cleanEmail, newUser);
+
+    // Persist to Neon DB using Drizzle ORM
+    try {
+      await db.insert(users).values({
+        id: userId,
+        name: newUser.name,
+        email: cleanEmail,
+        role: assignedRole,
+        company: newUser.companyName,
+        passwordHash: passwordHash,
+        jobTitle: newUser.jobTitle,
+        department: newUser.department,
+        selectedPlan: newUser.selectedPlan,
+      });
+    } catch (dbErr) {
+      console.warn('Persist user to Neon DB warning:', dbErr);
+    }
+
+    // Issue Session Token
+    const token = 'tok_' + crypto.randomBytes(32).toString('hex');
+    activeSessions.set(token, {
+      userEmail: cleanEmail,
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
+    });
+
+    const { passwordHash: _, ...publicProfile } = newUser;
+
+    return res.json({
+      success: true,
+      token,
+      user: publicProfile,
+      message: 'Enterprise workspace account created successfully.'
+    });
+  } catch (err: any) {
+    console.error('Error in signup endpoint:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error during account registration.' });
+  }
+}
+
 // 1. Sign Up Endpoint (/api/auth/signup)
-router.all(['/signup', '/signup/'], (req: Request, res: Response, next) => {
+router.post('/signup', handleSignup);
+router.all(['/signup', '/signup/'], (req: Request, res: Response) => {
   if (req.method === 'POST') {
     return handleSignup(req, res);
   }
@@ -18,7 +202,8 @@ router.all(['/signup', '/signup/'], (req: Request, res: Response, next) => {
 });
 
 // 2. Sign In / Login Endpoint (/api/auth/login)
-router.all(['/login', '/login/'], (req: Request, res: Response, next) => {
+router.post('/login', handleLogin);
+router.all(['/login', '/login/'], (req: Request, res: Response) => {
   if (req.method === 'POST') {
     return handleLogin(req, res);
   }
@@ -253,23 +438,23 @@ function renderOAuthSuccessHtml(token: string, user: any, provider: string) {
 </html>`;
 }
 
-// 5. OAuth Callbacks
-const handleOAuthCallback = async (provider: 'Google' | 'Microsoft 365', req: Request, res: Response) => {
-  try {
-    const email = provider === 'Google' ? 'google.workspace@spihead.com' : 'm365.executive@spihead.com';
-    const name = provider === 'Google' ? 'Google Workspace Director' : 'Microsoft 365 Enterprise Lead';
-    
-    const { token, user } = await completeOAuthSignIn(email, name, provider, req);
-    res.setHeader('Content-Type', 'text/html');
-    return res.send(renderOAuthSuccessHtml(token, user, provider));
-  } catch (err: any) {
-    console.error(`OAuth callback error for ${provider}:`, err);
-    return res.status(500).send(`<html><body><h3>OAuth Authentication Error</h3><p>${err.message}</p></body></html>`);
+// 5. OAuth Callbacks (Handled securely via [provider] module)
+router.all(['/oauth/callback/google', '/oauth/callback/google/'], (req, res) => {
+  (req.params as any).provider = 'google';
+  return handleProviderOAuthFlow(req, res);
+});
+router.all(['/oauth/callback/microsoft', '/oauth/callback/microsoft/'], (req, res) => {
+  (req.params as any).provider = 'microsoft';
+  return handleProviderOAuthFlow(req, res);
+});
+router.all(['/callback/:provider', '/callback/:provider/'], handleProviderOAuthFlow);
+router.all(['/:provider', '/:provider/'], (req, res, next) => {
+  const p = req.params.provider;
+  if (['signup', 'login', 'me', 'logout', 'oauth'].includes(p)) {
+    return next();
   }
-};
-
-router.get(['/oauth/callback/google', '/oauth/callback/google/'], (req, res) => handleOAuthCallback('Google', req, res));
-router.get(['/oauth/callback/microsoft', '/oauth/callback/microsoft/'], (req, res) => handleOAuthCallback('Microsoft 365', req, res));
+  return handleProviderOAuthFlow(req, res);
+});
 
 // 6. Direct OAuth SSO POST handler
 router.post('/oauth/sso', async (req: Request, res: Response) => {

@@ -613,7 +613,7 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
               </form>
             ) : (
               /* FORM STEP 2: Multi-Factor & Final Workspace Confirmation */
-              <form onSubmit={handleFinalRegister} className="space-y-5 animate-fadeIn">
+              <form onSubmit={handleSignUpSubmit} className="space-y-5 animate-fadeIn">
                 <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-2">
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider inline-block font-mono">
                     Step 2 of 2 • Multi-Factor Verification

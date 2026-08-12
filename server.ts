@@ -8,7 +8,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { db, sql } from "./src/db/index.js";
 import { users, leads, meetings, activities } from "./src/db/schema.js";
 import { initDbTables } from "./src/db/init.js";
-import apiRouter from "./src/api/index.js";
+import apiRouter, { apiErrorHandler, apiNotFoundHandler } from "./src/api/index.js";
 
 async function startServer() {
   const app = express();
@@ -351,6 +351,10 @@ Return structured JSON containing actionTitle, category, confidenceScore (number
       });
     }
   });
+
+  // Catch-all 404 and error handlers for /api routes to prevent HTML fallback pages
+  app.use("/api/*", apiNotFoundHandler);
+  app.use("/api", apiErrorHandler);
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
