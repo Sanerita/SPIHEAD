@@ -10,19 +10,23 @@ import { handleLogin } from './login';
 const router = Router();
 
 // 1. Sign Up Endpoint (/api/auth/signup)
-router.post('/signup', handleSignup);
-router.get('/signup', (req: Request, res: Response) => {
+router.all(['/signup', '/signup/'], (req: Request, res: Response, next) => {
+  if (req.method === 'POST') {
+    return handleSignup(req, res);
+  }
   return res.json({ success: true, message: 'SPIHEAD Authentication Signup API endpoint active. Use POST to register.' });
 });
 
 // 2. Sign In / Login Endpoint (/api/auth/login)
-router.post('/login', handleLogin);
-router.get('/login', (req: Request, res: Response) => {
+router.all(['/login', '/login/'], (req: Request, res: Response, next) => {
+  if (req.method === 'POST') {
+    return handleLogin(req, res);
+  }
   return res.json({ success: true, message: 'SPIHEAD Authentication Login API endpoint active. Use POST to sign in.' });
 });
 
 // 3. Current User Endpoint (/api/auth/me)
-router.get('/me', async (req: Request, res: Response) => {
+router.all(['/me', '/me/'], async (req: Request, res: Response) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -78,7 +82,7 @@ router.get('/me', async (req: Request, res: Response) => {
 });
 
 // 4. OAuth Auth URL Endpoint (/api/auth/oauth/url)
-router.get('/oauth/url', (req: Request, res: Response) => {
+router.all(['/oauth/url', '/oauth/url/'], (req: Request, res: Response) => {
   const provider = (req.query.provider as string || 'microsoft').toLowerCase();
   const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
 
