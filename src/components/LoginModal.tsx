@@ -83,7 +83,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onNaviga
     setIsAuthenticating(true);
     setAuthProviderText('Authenticating with Google Workspace...');
     try {
-      await authService.loginWithM365(email || 'sanelisiwe.sileku@spihead.com');
+      await authService.loginWithGoogle(email || 'sanelisiwe.sileku@spihead.com');
       setIsAuthenticating(false);
       onLoginSuccess();
     } catch (err: any) {

@@ -5,70 +5,234 @@ import { leads } from '../db/schema';
 
 const router = Router();
 
-// GET /api/leads
+// Demo seed leads to populate database on initial run
+const DEMO_LEADS = [
+  {
+    id: 'lead-001',
+    userId: 'usr_001',
+    name: 'Sarah Jenkins',
+    email: 'sarah.jenkins@techcorp.com',
+    phone: '+1 (555) 234-5678',
+    company: 'TechCorp Solutions',
+    budget: 85000,
+    status: 'Qualified',
+    score: 92,
+    urgency: true,
+    engagement: 5,
+    replyCount: 4,
+    notes: 'VP of Enterprise IT. Highly interested in M365 Outlook integration and automated lead scoring.',
+    industry: 'Enterprise Software & Cloud',
+    tags: JSON.stringify(['M365', 'High Intent', 'Cloud']),
+  },
+  {
+    id: 'lead-002',
+    userId: 'usr_001',
+    name: 'Marcus Vance',
+    email: 'm.vance@vertexdigital.io',
+    phone: '+1 (555) 876-5432',
+    company: 'Vertex Digital',
+    budget: 120000,
+    status: 'Proposal',
+    score: 88,
+    urgency: true,
+    engagement: 4,
+    replyCount: 3,
+    notes: 'Chief Technology Officer evaluating CRM migration. Requires Teams meeting scheduling.',
+    industry: 'Digital Transformation',
+    tags: JSON.stringify(['Migration', 'Decision Maker']),
+  },
+  {
+    id: 'lead-003',
+    userId: 'usr_001',
+    name: 'Elena Rostova',
+    email: 'elena.rostova@quantumfin.com',
+    phone: '+1 (555) 345-6789',
+    company: 'Quantum Finance Corp',
+    budget: 250000,
+    status: 'Negotiation',
+    score: 96,
+    urgency: true,
+    engagement: 5,
+    replyCount: 7,
+    notes: 'Managing Director of FinTech Operations. Security audit completed.',
+    industry: 'Financial Services & Banking',
+    tags: JSON.stringify(['FinTech', 'Enterprise', 'High Budget']),
+  },
+  {
+    id: 'lead-004',
+    userId: 'usr_001',
+    name: 'David Chen',
+    email: 'dchen@bionova.health',
+    phone: '+1 (555) 987-6543',
+    company: 'BioNova Healthcare',
+    budget: 60000,
+    status: 'New',
+    score: 65,
+    urgency: false,
+    engagement: 2,
+    replyCount: 1,
+    notes: 'Inbound lead via Microsoft AppSource listing. Requested whitepaper on CRM security.',
+    industry: 'Healthcare & Biotechnology',
+    tags: JSON.stringify(['Inbound', 'AppSource']),
+  },
+  {
+    id: 'lead-005',
+    userId: 'usr_001',
+    name: 'Rachel Adams',
+    email: 'rachel@horizonhealth.org',
+    phone: '+1 (555) 456-7890',
+    company: 'Horizon Healthcare Network',
+    budget: 95000,
+    status: 'Contacted',
+    score: 74,
+    urgency: false,
+    engagement: 3,
+    replyCount: 2,
+    notes: 'Chief Information Officer looking to streamline patient referral sales pipeline.',
+    industry: 'Healthcare & Life Sciences',
+    tags: JSON.stringify(['Healthcare', 'CIO']),
+  }
+];
+
+async function ensureSeedLeads() {
+  try {
+    const existing = await db.select().from(leads).limit(1);
+    if (existing.length === 0) {
+      console.log('Seeding initial leads into Neon database...');
+      for (const lead of DEMO_LEADS) {
+        try {
+          await db.insert(leads).values(lead);
+        } catch (insertErr) {
+          console.warn(`Failed to seed lead ${lead.id}:`, insertErr);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Seed leads check warning:', err);
+  }
+}
+
+// GET /api/leads - Fetch all leads from Neon database
 router.get('/', async (req: Request, res: Response) => {
   try {
+    await ensureSeedLeads();
     const dbLeads = await db.select().from(leads);
-    return res.json({ success: true, leads: dbLeads });
+    return res.json({
+      success: true,
+      leads: dbLeads,
+      count: dbLeads.length,
+      source: 'Neon PostgreSQL'
+    });
   } catch (err: any) {
-    console.warn('DB leads query warning:', err);
-    return res.json({ success: true, leads: [] });
+    console.error('Error fetching leads from Neon database:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch leads from database', leads: [] });
   }
 });
 
-// POST /api/leads
-router.post('/', async (req: Request, res: Response) => {
+// GET /api/leads/:id - Fetch single lead by ID
+router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const leadData = req.body;
-    const leadId = leadData.id || `lead_${Date.now()}`;
-    await db.insert(leads).values({
-      id: leadId,
-      userId: leadData.userId || 'usr_001',
-      name: leadData.name || 'Unnamed Contact',
-      email: leadData.email,
-      phone: leadData.phone,
-      company: leadData.company,
-      budget: leadData.budget || 0,
-      status: leadData.status || 'New',
-      score: leadData.score || 50,
-      urgency: leadData.urgency || false,
-      engagement: leadData.engagement || 1,
-      replyCount: leadData.replyCount || 0,
-      notes: leadData.notes,
-      industry: leadData.industry,
-      tags: Array.isArray(leadData.tags) ? JSON.stringify(leadData.tags) : leadData.tags,
-    });
-    return res.json({ success: true, id: leadId });
+    const { id } = req.params;
+    const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
+    if (result.length === 0) {
+      return res.status(404).json({ success: false, error: 'Lead not found' });
+    }
+    return res.json({ success: true, lead: result[0] });
   } catch (err: any) {
-    console.warn('Failed to create lead in DB:', err);
+    console.error(`Error fetching lead ${req.params.id}:`, err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// PUT /api/leads/:id
+// POST /api/leads - Create new lead in Neon database
+router.post('/', async (req: Request, res: Response) => {
+  try {
+    const leadData = req.body;
+    const leadId = leadData.id || `lead_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    
+    const newLead = {
+      id: leadId,
+      userId: leadData.userId || 'usr_001',
+      name: leadData.name || 'Unnamed Contact',
+      email: leadData.email || '',
+      phone: leadData.phone || '',
+      company: leadData.company || '',
+      budget: Number(leadData.budget) || 0,
+      status: leadData.status || 'New',
+      score: Number(leadData.score) || 50,
+      urgency: Boolean(leadData.urgency),
+      engagement: Number(leadData.engagement) || 1,
+      replyCount: Number(leadData.replyCount) || 0,
+      notes: leadData.notes || '',
+      industry: leadData.industry || 'Technology',
+      tags: Array.isArray(leadData.tags) ? JSON.stringify(leadData.tags) : (leadData.tags || '[]'),
+    };
+
+    await db.insert(leads).values(newLead);
+    
+    return res.json({
+      success: true,
+      message: 'Lead created successfully in Neon database',
+      id: leadId,
+      lead: newLead
+    });
+  } catch (err: any) {
+    console.error('Failed to create lead in Neon database:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/leads/:id - Update existing lead in Neon database
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updates = req.body;
-    await db.update(leads).set({
-      ...updates,
-      tags: Array.isArray(updates.tags) ? JSON.stringify(updates.tags) : updates.tags,
-    }).where(eq(leads.id, id));
-    return res.json({ success: true });
+    
+    const updatePayload: Record<string, any> = {};
+    if (updates.name !== undefined) updatePayload.name = updates.name;
+    if (updates.email !== undefined) updatePayload.email = updates.email;
+    if (updates.phone !== undefined) updatePayload.phone = updates.phone;
+    if (updates.company !== undefined) updatePayload.company = updates.company;
+    if (updates.status !== undefined) updatePayload.status = updates.status;
+    if (updates.notes !== undefined) updatePayload.notes = updates.notes;
+    if (updates.industry !== undefined) updatePayload.industry = updates.industry;
+    if (updates.urgency !== undefined) updatePayload.urgency = Boolean(updates.urgency);
+    if (updates.tags !== undefined) {
+      updatePayload.tags = Array.isArray(updates.tags) ? JSON.stringify(updates.tags) : updates.tags;
+    }
+    if (updates.budget !== undefined) updatePayload.budget = Number(updates.budget);
+    if (updates.score !== undefined) updatePayload.score = Number(updates.score);
+    if (updates.replyCount !== undefined) updatePayload.replyCount = Number(updates.replyCount);
+    if (updates.engagement !== undefined) updatePayload.engagement = Number(updates.engagement);
+
+    await db.update(leads).set(updatePayload).where(eq(leads.id, id));
+    
+    return res.json({
+      success: true,
+      message: 'Lead updated successfully in Neon database',
+      id
+    });
   } catch (err: any) {
+    console.error(`Failed to update lead ${req.params.id} in Neon database:`, err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// DELETE /api/leads/:id
+// DELETE /api/leads/:id - Delete lead from Neon database
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await db.delete(leads).where(eq(leads.id, id));
-    return res.json({ success: true });
+    return res.json({
+      success: true,
+      message: 'Lead removed from Neon database',
+      id
+    });
   } catch (err: any) {
+    console.error(`Failed to delete lead ${req.params.id} from Neon database:`, err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
 
 export default router;
+

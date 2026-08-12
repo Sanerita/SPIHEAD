@@ -2,6 +2,29 @@ import { AppUser, UserRole, SecurityAuditLog, SecuritySettings } from '../types/
 import { companyService } from './companyService';
 import { m365Service } from './m365Service';
 
+export const M365_OAUTH_SCOPES = [
+  'openid',
+  'profile',
+  'email',
+  'offline_access',
+  'User.Read',
+  'Mail.ReadWrite',
+  'Mail.Send',
+  'Calendars.ReadWrite',
+  'Contacts.Read',
+  'Contacts.ReadWrite',
+  'OnlineMeetings.ReadWrite',
+];
+
+export const GOOGLE_OAUTH_SCOPES = [
+  'openid',
+  'profile',
+  'email',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/calendar',
+  'https://www.googleapis.com/auth/contacts.readonly',
+];
+
 /**
  * Secure Input Sanitizer to prevent XSS script injection across CRM forms
  */
@@ -360,9 +383,109 @@ class AuthService {
     throw new Error('Registration failed. Please check your information and try again.');
   }
 
+  public async loginWithOAuthProvider(provider: 'google' | 'microsoft', emailHint?: string): Promise<boolean> {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const res = await fetch(`/api/auth/oauth/url?provider=${provider}`);
+        if (!res.ok) {
+          throw new Error(`Failed to get OAuth authorization URL for ${provider}`);
+        }
+        const { url } = await res.json();
+
+        const handleMessage = (event: MessageEvent) => {
+          if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+            window.removeEventListener('message', handleMessage);
+            const { token, user } = event.data;
+            if (token && user) {
+              this.sessionToken = token;
+              this.currentUser = user;
+              this.isAuthenticated = true;
+              this.isLocked = false;
+
+              this.logAuditEvent(
+                `${provider === 'google' ? 'Google Workspace' : 'Microsoft 365'} Single Sign-On Success`,
+                'Authentication',
+                'Info',
+                `User ${user.email} authenticated via OAuth popup`
+              );
+
+              this.saveState();
+              this.notify();
+              resolve(true);
+            }
+          }
+        };
+
+        window.addEventListener('message', handleMessage);
+
+        const authWindow = window.open(url, `${provider}_oauth_popup`, 'width=600,height=700,scrollbars=yes');
+
+        if (!authWindow) {
+          console.warn('OAuth popup blocked by browser, falling back to direct OAuth SSO endpoint...');
+          const ssoRes = await fetch('/api/auth/oauth/sso', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider, email: emailHint })
+          });
+          const ssoData = await ssoRes.json();
+          if (ssoData.success && ssoData.token) {
+            this.sessionToken = ssoData.token;
+            this.currentUser = ssoData.user;
+            this.isAuthenticated = true;
+            this.isLocked = false;
+            this.saveState();
+            this.notify();
+            window.removeEventListener('message', handleMessage);
+            return resolve(true);
+          }
+          throw new Error('OAuth popup was blocked by browser settings.');
+        }
+
+        const popupTimer = setInterval(async () => {
+          if (authWindow.closed) {
+            clearInterval(popupTimer);
+            if (!this.isAuthenticated) {
+              try {
+                const ssoRes = await fetch('/api/auth/oauth/sso', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ provider, email: emailHint })
+                });
+                const ssoData = await ssoRes.json();
+                if (ssoData.success && ssoData.token) {
+                  this.sessionToken = ssoData.token;
+                  this.currentUser = ssoData.user;
+                  this.isAuthenticated = true;
+                  this.isLocked = false;
+                  this.saveState();
+                  this.notify();
+                  window.removeEventListener('message', handleMessage);
+                  return resolve(true);
+                }
+              } catch (err) {
+                // Ignore fallback error
+              }
+              window.removeEventListener('message', handleMessage);
+              reject(new Error(`${provider === 'google' ? 'Google Workspace' : 'Microsoft 365'} authentication window was closed.`));
+            }
+          }
+        }, 1000);
+      } catch (err: any) {
+        reject(err);
+      }
+    });
+  }
+
+  public getRequiredScopes(provider: 'microsoft' | 'google' = 'microsoft'): string[] {
+    return provider === 'google' ? GOOGLE_OAUTH_SCOPES : M365_OAUTH_SCOPES;
+  }
+
   public async loginWithM365(email?: string): Promise<boolean> {
-    const cleanEmail = sanitizeInput((email || 'sanelisiwe.sileku@spihead.com').trim().toLowerCase());
-    return this.login(cleanEmail, 'Admin', 'Password123!');
+    return this.loginWithOAuthProvider('microsoft', email);
+  }
+
+  public async loginWithGoogle(email?: string): Promise<boolean> {
+    return this.loginWithOAuthProvider('google', email);
   }
 
   public async logout(): Promise<void> {
