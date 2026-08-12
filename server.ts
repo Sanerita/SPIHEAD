@@ -91,8 +91,8 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Initialize Neon Postgres database tables automatically
-  await initDbTables();
+  // Initialize Neon Postgres database tables automatically in background
+  initDbTables().catch((err) => console.warn("Init DB tables error:", err));
 
   // --- Backend Authentication Endpoints ---
 
