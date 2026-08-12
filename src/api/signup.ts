@@ -103,5 +103,8 @@ export async function handleSignup(req: Request, res: Response) {
 const router = Router();
 router.post('/', handleSignup);
 router.post('/signup', handleSignup);
+router.get(['/', '/signup'], (req: Request, res: Response) => {
+  return res.json({ success: true, message: 'SPIHEAD Authentication Signup API endpoint active. Use POST to register.' });
+});
 
 export default router;

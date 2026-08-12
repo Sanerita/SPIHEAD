@@ -11,9 +11,15 @@ const router = Router();
 
 // 1. Sign Up Endpoint (/api/auth/signup)
 router.post('/signup', handleSignup);
+router.get('/signup', (req: Request, res: Response) => {
+  return res.json({ success: true, message: 'SPIHEAD Authentication Signup API endpoint active. Use POST to register.' });
+});
 
 // 2. Sign In / Login Endpoint (/api/auth/login)
 router.post('/login', handleLogin);
+router.get('/login', (req: Request, res: Response) => {
+  return res.json({ success: true, message: 'SPIHEAD Authentication Login API endpoint active. Use POST to sign in.' });
+});
 
 // 3. Current User Endpoint (/api/auth/me)
 router.get('/me', async (req: Request, res: Response) => {
