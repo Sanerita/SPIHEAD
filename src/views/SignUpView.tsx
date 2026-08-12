@@ -106,8 +106,8 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
 
   const strength = getPasswordStrength(password);
 
-  // Validate Step 1
-  const handleStep1Submit = (e: React.FormEvent) => {
+  // Direct Account Registration Submission
+  const handleSignUpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -132,31 +132,8 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
       return;
     }
 
-    // Advance to Step 2 (Verification / Provisioning)
     setIsSubmitting(true);
-    setSubmissionProgress('Validating enterprise domain...');
-    
-    setTimeout(() => {
-      setSubmissionProgress('Setting up multi-factor security profile...');
-      setTimeout(() => {
-        setIsSubmitting(false);
-        setCurrentStep(2);
-      }, 600);
-    }, 600);
-  };
-
-  // Final Registration Action
-  const handleFinalRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (mfaPasscode && mfaPasscode.length > 0 && mfaPasscode.length !== 6) {
-      setError('Please enter a valid 6-digit authenticator passcode.');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setSubmissionProgress('Provisioning enterprise tenant database & validating credentials...');
+    setSubmissionProgress('Creating account & initializing database...');
 
     try {
       // Upgrade plan in subscription service
@@ -169,7 +146,7 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
       });
       crmStore.adaptToCompanyProfile(selectedIndustry, companyName.trim() || 'My Company');
 
-      // Register user in backend auth service
+      // Register user in backend auth service & Neon DB
       await authService.register({
         fullName,
         email: workEmail,
@@ -184,34 +161,38 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
       onSignUpSuccess();
     } catch (err: any) {
       setIsSubmitting(false);
-      setError(err.message || 'Failed to register enterprise workspace. Please check your details.');
+      setError(err.message || 'Failed to create workspace account. Please check your details or try signing in.');
     }
   };
 
   // One-Click OAuth SSO Sign Up
-  const handleSSOSignUp = (provider: 'm365' | 'google') => {
+  const handleSSOSignUp = async (provider: 'm365' | 'google') => {
     setIsSubmitting(true);
     setSubmissionProgress(`Authenticating with ${provider === 'm365' ? 'Microsoft 365 Entra ID' : 'Google Workspace'}...`);
 
-    setTimeout(() => {
+    try {
       const emailDomain = provider === 'm365' ? 'spihead.com' : 'workspace.org';
       const sampleEmail = workEmail.trim() || `admin@${companyName ? companyName.toLowerCase().replace(/\s+/g, '') : 'enterprise'}.${emailDomain}`;
       const sampleCompany = companyName.trim() || 'Global Commercial Group';
 
       subscriptionService.upgradeOrChangePlan(selectedPlan, 'annual');
 
-      authService.register({
+      await authService.register({
         fullName: fullName.trim() || 'Enterprise Administrator',
         email: sampleEmail,
         companyName: sampleCompany,
         companySize,
         role: 'Admin',
-        selectedPlan
+        selectedPlan,
+        password: 'Password123!'
       });
 
       setIsSubmitting(false);
       onSignUpSuccess();
-    }, 1200);
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setError(err.message || 'SSO Sign Up failed.');
+    }
   };
 
   return (
@@ -394,7 +375,7 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
 
             {/* FORM STEP 1 */}
             {currentStep === 1 ? (
-              <form onSubmit={handleStep1Submit} className="space-y-4">
+              <form onSubmit={handleSignUpSubmit} className="space-y-4">
                 
                 {/* One-Click OAuth SSO Sign Up Options */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -619,11 +600,11 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
                   {isSubmitting ? (
                     <>
                       <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span>{submissionProgress || 'Initializing Workspace...'}</span>
+                      <span>{submissionProgress || 'Creating Workspace...'}</span>
                     </>
                   ) : (
                     <>
-                      <span>Continue to Multi-Factor Security Setup</span>
+                      <span>Create Workspace & Launch Now</span>
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}

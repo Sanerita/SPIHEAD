@@ -270,7 +270,7 @@ async function startServer() {
   });
 
   // 3. Current User Endpoint (/api/auth/me)
-  app.get("/api/auth/me", (req, res) => {
+  app.get("/api/auth/me", async (req, res) => {
     try {
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -285,7 +285,35 @@ async function startServer() {
         return res.status(401).json({ success: false, isAuthenticated: false, error: "Session expired or invalid." });
       }
 
-      const user = usersDb.get(session.userEmail);
+      let user = usersDb.get(session.userEmail);
+      if (!user) {
+        try {
+          const dbUsers = await db.select().from(users).where(eq(users.email, session.userEmail)).limit(1);
+          if (dbUsers.length > 0) {
+            const dbU = dbUsers[0];
+            user = {
+              id: dbU.id,
+              email: dbU.email,
+              name: dbU.name,
+              passwordHash: dbU.passwordHash || "",
+              role: dbU.role || "Admin",
+              authRole: dbU.role || "Admin",
+              mfaEnabled: true,
+              pinCode: "1234",
+              lastLoginAt: new Date().toISOString(),
+              jobTitle: dbU.jobTitle || "Workspace Administrator",
+              department: dbU.department || "Executive Operations",
+              ipAddress: req.ip || "127.0.0.1",
+              companyName: dbU.company || "Enterprise Workspace",
+              selectedPlan: dbU.selectedPlan || "small-business"
+            };
+            usersDb.set(session.userEmail, user);
+          }
+        } catch (dbErr) {
+          console.warn("DB user lookup error in /api/auth/me:", dbErr);
+        }
+      }
+
       if (!user) {
         return res.status(404).json({ success: false, isAuthenticated: false, error: "User account not found." });
       }
