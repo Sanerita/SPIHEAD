@@ -6,6 +6,7 @@ export async function initDbTables() {
     return;
   }
   try {
+    // 1. Create tables if they do not exist
     await sql`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
@@ -44,35 +45,6 @@ export async function initDbTables() {
       );
     `;
 
-    // Migration queries for existing tables missing new columns
-    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;`;
-    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title TEXT;`;
-    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT;`;
-    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS selected_plan TEXT;`;
-
-    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS user_id TEXT;`;
-    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS budget INTEGER DEFAULT 0;`;
-    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'New';`;
-    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS score INTEGER DEFAULT 50;`;
-    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS urgency BOOLEAN DEFAULT false;`;
-    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS engagement INTEGER DEFAULT 1;`;
-    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS reply_count INTEGER DEFAULT 0;`;
-    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS notes TEXT;`;
-    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS industry TEXT;`;
-    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS tags TEXT;`;
-
-    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS user_id TEXT;`;
-    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS lead_id TEXT;`;
-    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS lead_name TEXT;`;
-    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS lead_email TEXT;`;
-    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS duration INTEGER DEFAULT 30;`;
-    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Scheduled';`;
-    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS teams_join_url TEXT;`;
-
-    await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS user_id TEXT;`;
-    await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS lead_id TEXT;`;
-    await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS lead_name TEXT;`;
-
     await sql`
       CREATE TABLE IF NOT EXISTS meetings (
         id TEXT PRIMARY KEY,
@@ -103,8 +75,62 @@ export async function initDbTables() {
       );
     `;
 
+    // 2. Safely add any missing columns to existing tables (migrations)
+    // Users columns
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT;`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS company TEXT;`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title TEXT;`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT;`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS selected_plan TEXT;`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`;
+
+    // Leads columns
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS user_id TEXT;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS name TEXT;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS email TEXT;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS phone TEXT;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS company TEXT;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS budget INTEGER DEFAULT 0;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'New';`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS score INTEGER DEFAULT 50;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS urgency BOOLEAN DEFAULT false;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS engagement INTEGER DEFAULT 1;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS reply_count INTEGER DEFAULT 0;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS notes TEXT;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS industry TEXT;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS tags TEXT;`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`;
+    await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`;
+
+    // Meetings columns
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS user_id TEXT;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS lead_id TEXT;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS title TEXT;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS lead_name TEXT;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS lead_email TEXT;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS date TEXT;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS time TEXT;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS duration INTEGER DEFAULT 30;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Scheduled';`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS notes TEXT;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS teams_join_url TEXT;`;
+    await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`;
+
+    // Activities columns
+    await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS user_id TEXT;`;
+    await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS type TEXT;`;
+    await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS message TEXT;`;
+    await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS lead_id TEXT;`;
+    await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS lead_name TEXT;`;
+    await sql`ALTER TABLE activities ADD COLUMN IF NOT EXISTS timestamp TIMESTAMP DEFAULT NOW();`;
+
     console.log("Neon Postgres tables initialized and ready.");
   } catch (err) {
     console.warn("DB table initialization warning:", err);
   }
 }
+
