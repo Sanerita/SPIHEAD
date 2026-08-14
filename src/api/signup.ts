@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { handleSignup } from './auth';
+import { handleSignup } from './auth.js';
 
 export { handleSignup };
 
