@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index';
 import { users } from '../db/schema';
-import { usersDb, activeSessions, ServerUser } from './sessionStore';
+import { usersDb, activeSessions, ServerUser, createSessionToken, getVerifiedSession } from './sessionStore';
 import { handleProviderOAuthFlow } from './auth/[provider]';
 
 const router = Router();
@@ -59,7 +59,7 @@ export async function handleLogin(req: Request, res: Response) {
     // Validate password
     if (password) {
       const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-      if (passwordHash !== user.passwordHash && password !== 'Password123!') {
+      if (passwordHash !== user.passwordHash) {
         return res.status(401).json({ success: false, error: 'Incorrect password provided for this account.' });
       }
     }
@@ -72,12 +72,8 @@ export async function handleLogin(req: Request, res: Response) {
     }
     usersDb.set(cleanEmail, user);
 
-    // Issue Session Token
-    const token = 'tok_' + crypto.randomBytes(32).toString('hex');
-    activeSessions.set(token, {
-      userEmail: cleanEmail,
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000
-    });
+    // Issue Session Token (stateless signed token)
+    const token = createSessionToken(cleanEmail);
 
     const { passwordHash: _, ...publicProfile } = user;
 
@@ -171,12 +167,8 @@ export async function handleSignup(req: Request, res: Response) {
       console.warn('Persist user to Neon DB warning:', dbErr);
     }
 
-    // Issue Session Token
-    const token = 'tok_' + crypto.randomBytes(32).toString('hex');
-    activeSessions.set(token, {
-      userEmail: cleanEmail,
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000 // 24 hours
-    });
+    // Issue Session Token (stateless signed token)
+    const token = createSessionToken(cleanEmail);
 
     const { passwordHash: _, ...publicProfile } = newUser;
 
@@ -219,9 +211,9 @@ router.all(['/me', '/me/'], async (req: Request, res: Response) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const session = activeSessions.get(token);
+    const session = getVerifiedSession(token);
 
-    if (!session || Date.now() > session.expiresAt) {
+    if (!session) {
       if (token) activeSessions.delete(token);
       return res.status(401).json({ success: false, isAuthenticated: false, error: 'Session expired or invalid.' });
     }

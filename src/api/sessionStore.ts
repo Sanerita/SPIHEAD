@@ -73,3 +73,65 @@ export const usersDb = new Map<string, ServerUser>();
 SEED_USERS.forEach((u) => usersDb.set(u.email.toLowerCase(), u));
 
 export const activeSessions = new Map<string, { userEmail: string; expiresAt: number }>();
+
+const SECRET_KEY = process.env.SESSION_SECRET || process.env.DATABASE_URL || 'spihead-enterprise-session-signing-key-2026';
+
+function hmacSign(data: string): string {
+  return crypto.createHmac('sha256', SECRET_KEY).update(data).digest('hex');
+}
+
+/**
+ * Creates a stateless signed session token that works seamlessly across serverless instances and cold starts.
+ */
+export function createSessionToken(userEmail: string, expiresInHours = 24): string {
+  const expiresAt = Date.now() + expiresInHours * 60 * 60 * 1000;
+  const payload = JSON.stringify({ email: userEmail.toLowerCase(), exp: expiresAt, rand: crypto.randomBytes(8).toString('hex') });
+  const base64Payload = Buffer.from(payload).toString('base64url');
+  const signature = hmacSign(base64Payload);
+  const token = `tok_v2_${base64Payload}.${signature}`;
+
+  // Also record in local activeSessions cache
+  activeSessions.set(token, { userEmail: userEmail.toLowerCase(), expiresAt });
+  return token;
+}
+
+/**
+ * Verifies a session token statelessly or via memory cache.
+ */
+export function getVerifiedSession(token: string): { userEmail: string; expiresAt: number } | null {
+  if (!token) return null;
+
+  // 1. Check in-memory session cache first
+  const cached = activeSessions.get(token);
+  if (cached) {
+    if (Date.now() > cached.expiresAt) {
+      activeSessions.delete(token);
+      return null;
+    }
+    return cached;
+  }
+
+  // 2. Decode and verify stateless signed token
+  if (token.startsWith('tok_v2_')) {
+    try {
+      const parts = token.slice(7).split('.');
+      if (parts.length !== 2) return null;
+      const [base64Payload, signature] = parts;
+      const expectedSig = hmacSign(base64Payload);
+      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
+        return null;
+      }
+      const payload = JSON.parse(Buffer.from(base64Payload, 'base64url').toString('utf-8'));
+      if (!payload.email || typeof payload.exp !== 'number' || Date.now() > payload.exp) {
+        return null;
+      }
+      const session = { userEmail: payload.email, expiresAt: payload.exp };
+      activeSessions.set(token, session);
+      return session;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  return null;
+}
