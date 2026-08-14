@@ -31,10 +31,10 @@ export async function handleLogin(req: Request, res: Response) {
     let user = usersDb.get(cleanEmail);
 
     // Query Neon DB using Drizzle ORM if not cached in memory
-    if (!user) {
+    if (!user && db) {
       try {
         const dbResult = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
-        if (dbResult.length > 0) {
+        if (dbResult && dbResult.length > 0) {
           const dbU = dbResult[0];
           user = {
             id: dbU.id,
@@ -86,20 +86,22 @@ export async function handleLogin(req: Request, res: Response) {
 
       usersDb.set(cleanEmail, user);
 
-      try {
-        await db.insert(users).values({
-          id: userId,
-          name: user.name,
-          email: cleanEmail,
-          role: assignedRole,
-          company: user.companyName,
-          passwordHash: passwordHash,
-          jobTitle: user.jobTitle,
-          department: user.department,
-          selectedPlan: user.selectedPlan,
-        });
-      } catch (dbErr) {
-        console.warn('Auto-provision user in Neon DB warning:', dbErr);
+      if (db) {
+        try {
+          await db.insert(users).values({
+            id: userId,
+            name: user.name,
+            email: cleanEmail,
+            role: assignedRole,
+            company: user.companyName,
+            passwordHash: passwordHash,
+            jobTitle: user.jobTitle,
+            department: user.department,
+            selectedPlan: user.selectedPlan,
+          });
+        } catch (dbErr) {
+          console.warn('Auto-provision user in Neon DB warning:', dbErr);
+        }
       }
     }
 
@@ -133,7 +135,7 @@ export async function handleLogin(req: Request, res: Response) {
   } catch (err: any) {
     console.error('Error in login endpoint:', err);
     if (res.headersSent) return;
-    return res.status(500).json({ success: false, error: 'Internal server error during authentication.' });
+    return res.status(500).json({ success: false, error: err?.message || 'Internal server error during authentication.' });
   }
 }
 
@@ -160,13 +162,15 @@ export async function handleSignup(req: Request, res: Response) {
 
     // Check Neon DB and memory for existing user
     let existingInDb = null;
-    try {
-      const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
-      if (dbUsers.length > 0) {
-        existingInDb = dbUsers[0];
+    if (db) {
+      try {
+        const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
+        if (dbUsers && dbUsers.length > 0) {
+          existingInDb = dbUsers[0];
+        }
+      } catch (err) {
+        console.warn('Neon DB user query warning during signup:', err);
       }
-    } catch (err) {
-      console.warn('Neon DB user query warning during signup:', err);
     }
 
     if (existingInDb || usersDb.has(cleanEmail)) {
@@ -177,6 +181,9 @@ export async function handleSignup(req: Request, res: Response) {
       });
     }
 
+    const safeFullName = typeof fullName === 'string' ? fullName.trim() : (fullName ? String(fullName) : '');
+    const safeCompanyName = typeof companyName === 'string' ? companyName.trim() : (companyName ? String(companyName) : '');
+
     const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
     const userId = 'usr_' + Date.now().toString(36) + '_' + crypto.randomBytes(3).toString('hex');
     const assignedRole = role || 'Admin';
@@ -184,17 +191,17 @@ export async function handleSignup(req: Request, res: Response) {
     const newUser: ServerUser = {
       id: userId,
       email: cleanEmail,
-      name: fullName?.trim() || 'Workspace Director',
+      name: safeFullName || 'Workspace Director',
       passwordHash,
       role: assignedRole,
       authRole: assignedRole,
       mfaEnabled: true,
       pinCode: '1234',
       lastLoginAt: new Date().toISOString(),
-      jobTitle: `${companyName || 'Enterprise'} Workspace Administrator`,
+      jobTitle: `${safeCompanyName || 'Enterprise'} Workspace Administrator`,
       department: 'Executive Operations',
       ipAddress: req.ip || '127.0.0.1',
-      companyName: companyName?.trim() || 'Enterprise Workspace',
+      companyName: safeCompanyName || 'Enterprise Workspace',
       companySize: companySize || '11-50',
       selectedPlan: selectedPlan || 'small-business'
     };
@@ -203,20 +210,22 @@ export async function handleSignup(req: Request, res: Response) {
     usersDb.set(cleanEmail, newUser);
 
     // Persist to Neon DB using Drizzle ORM
-    try {
-      await db.insert(users).values({
-        id: userId,
-        name: newUser.name,
-        email: cleanEmail,
-        role: assignedRole,
-        company: newUser.companyName,
-        passwordHash: passwordHash,
-        jobTitle: newUser.jobTitle,
-        department: newUser.department,
-        selectedPlan: newUser.selectedPlan,
-      });
-    } catch (dbErr) {
-      console.warn('Persist user to Neon DB warning:', dbErr);
+    if (db) {
+      try {
+        await db.insert(users).values({
+          id: userId,
+          name: newUser.name,
+          email: cleanEmail,
+          role: assignedRole,
+          company: newUser.companyName,
+          passwordHash: passwordHash,
+          jobTitle: newUser.jobTitle,
+          department: newUser.department,
+          selectedPlan: newUser.selectedPlan,
+        });
+      } catch (dbErr) {
+        console.warn('Persist user to Neon DB warning:', dbErr);
+      }
     }
 
     // Issue Session Token (stateless signed token)
@@ -234,7 +243,7 @@ export async function handleSignup(req: Request, res: Response) {
   } catch (err: any) {
     console.error('Error in signup endpoint:', err);
     if (res.headersSent) return;
-    return res.status(500).json({ success: false, error: 'Internal server error during account registration.' });
+    return res.status(500).json({ success: false, error: err?.message || 'Internal server error during account registration.' });
   }
 }
 
