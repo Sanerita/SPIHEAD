@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import authRouter from './auth';
-import loginRouter from './login';
-import signupRouter from './signup';
-import leadsRouter from './leads';
-import { apiErrorHandler, apiNotFoundHandler } from './utils';
+import authRouter from './auth.js';
+import loginRouter from './login.js';
+import signupRouter from './signup.js';
+import leadsRouter from './leads.js';
+import { apiErrorHandler, apiNotFoundHandler } from './utils.js';
 
 const apiRouter = Router();
 
@@ -12,7 +12,7 @@ apiRouter.use('/login', loginRouter);
 apiRouter.use('/signup', signupRouter);
 apiRouter.use('/leads', leadsRouter);
 
-export * from './utils';
+export * from './utils.js';
 export { apiRouter, apiErrorHandler, apiNotFoundHandler };
 export default apiRouter;
 
