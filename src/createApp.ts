@@ -32,23 +32,7 @@ export async function createApp() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
-  // 3. Direct explicit route handlers for Signup and Login across all path variants
-  const signupPaths = ['/api/auth/signup', '/api/signup', '/auth/signup', '/signup'];
-  const loginPaths = ['/api/auth/login', '/api/login', '/auth/login', '/login'];
-
-  app.post(signupPaths, handleSignup);
-  app.get(signupPaths, (req, res) => {
-    if (res.headersSent) return;
-    return res.json({ success: true, message: 'SPIHEAD Authentication Signup API active.' });
-  });
-
-  app.post(loginPaths, handleLogin);
-  app.get(loginPaths, (req, res) => {
-    if (res.headersSent) return;
-    return res.json({ success: true, message: 'SPIHEAD Authentication Login API active.' });
-  });
-
-  // 4. URL normalizer middleware for subpath endpoints
+  // 3. URL normalizer middleware for non-/api routes
   app.use((req, res, next) => {
     const url = req.url || '';
     if (!url.startsWith('/api') && (
@@ -66,7 +50,7 @@ export async function createApp() {
   // Initialize Neon Postgres database tables automatically in background
   initDbTables().catch((err) => console.warn('Init DB tables error:', err));
 
-  // Mount API handlers from src/api (auth, leads)
+  // Mount API handlers from src/api (auth, leads, login)
   app.use('/api', apiRouter);
 
   // Helper to initialize Gemini client lazily per request
