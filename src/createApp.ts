@@ -3,6 +3,7 @@ import express from "express";
 import { GoogleGenAI, Type } from "@google/genai";
 import { initDbTables } from "./db/init.js";
 import apiRouter, { apiErrorHandler, apiNotFoundHandler } from "./api/index.js";
+import { handleSignup, handleLogin } from "./api/auth.js";
 
 /**
  * Builds and configures the Express app (routes, middleware, Gemini endpoints)
@@ -16,10 +17,38 @@ import apiRouter, { apiErrorHandler, apiNotFoundHandler } from "./api/index.js";
 export async function createApp() {
   const app = express();
 
+  // 1. Global CORS middleware for all endpoints
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
+  // 2. Request body parsing
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
-  // URL normalizer middleware to handle serverless rewrites where /api prefix might be stripped
+  // 3. Direct explicit route handlers for Signup and Login across all path variants
+  const signupPaths = ['/api/auth/signup', '/api/signup', '/auth/signup', '/signup'];
+  const loginPaths = ['/api/auth/login', '/api/login', '/auth/login', '/login'];
+
+  app.post(signupPaths, handleSignup);
+  app.all(signupPaths, (req, res) => {
+    if (req.method === 'POST') return handleSignup(req, res);
+    return res.json({ success: true, message: 'SPIHEAD Authentication Signup API active.' });
+  });
+
+  app.post(loginPaths, handleLogin);
+  app.all(loginPaths, (req, res) => {
+    if (req.method === 'POST') return handleLogin(req, res);
+    return res.json({ success: true, message: 'SPIHEAD Authentication Login API active.' });
+  });
+
+  // 4. URL normalizer middleware for subpath endpoints
   app.use((req, res, next) => {
     const url = req.url || '';
     if (!url.startsWith('/api') && (
@@ -34,22 +63,12 @@ export async function createApp() {
     next();
   });
 
-  // Universal CORS middleware for API routes
-  app.use(['/api', '/auth', '/login', '/signup', '/leads', '/gemini'], (req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    if (req.method === 'OPTIONS') {
-      return res.sendStatus(200);
-    }
-    next();
-  });
-
   // Initialize Neon Postgres database tables automatically in background
   initDbTables().catch((err) => console.warn('Init DB tables error:', err));
 
   // Mount API handlers from src/api (auth, leads)
   app.use('/api', apiRouter);
+  app.use(apiRouter);
 
   // Helper to initialize Gemini client lazily per request
   const getGeminiClient = () => {
