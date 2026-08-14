@@ -94,10 +94,14 @@ const DEMO_LEADS = [
   }
 ];
 
+// In-memory leads fallback when database is disconnected
+const memoryLeads: Map<string, any> = new Map(DEMO_LEADS.map(l => [l.id, l]));
+
 async function ensureSeedLeads() {
+  if (!db) return;
   try {
     const existing = await db.select().from(leads).limit(1);
-    if (existing.length === 0) {
+    if (existing && existing.length === 0) {
       console.log('Seeding initial leads into Neon database...');
       for (const lead of DEMO_LEADS) {
         try {
@@ -112,20 +116,34 @@ async function ensureSeedLeads() {
   }
 }
 
-// GET /api/leads - Fetch all leads from Neon database
+// GET /api/leads - Fetch all leads from Neon database or memory fallback
 router.get('/', async (req: Request, res: Response) => {
   try {
-    await ensureSeedLeads();
-    const dbLeads = await db.select().from(leads);
+    if (db) {
+      try {
+        await ensureSeedLeads();
+        const dbLeads = await db.select().from(leads);
+        return res.json({
+          success: true,
+          leads: dbLeads,
+          count: dbLeads.length,
+          source: 'Neon PostgreSQL'
+        });
+      } catch (dbErr) {
+        console.warn('Falling back to memory store for leads:', dbErr);
+      }
+    }
+
+    const leadsList = Array.from(memoryLeads.values());
     return res.json({
       success: true,
-      leads: dbLeads,
-      count: dbLeads.length,
-      source: 'Neon PostgreSQL'
+      leads: leadsList,
+      count: leadsList.length,
+      source: 'In-Memory Cache'
     });
   } catch (err: any) {
-    console.error('Error fetching leads from Neon database:', err);
-    return res.status(500).json({ success: false, error: 'Failed to fetch leads from database', leads: [] });
+    console.error('Error fetching leads:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch leads', leads: Array.from(memoryLeads.values()) });
   }
 });
 
@@ -133,18 +151,29 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
-    if (result.length === 0) {
-      return res.status(404).json({ success: false, error: 'Lead not found' });
+    if (db) {
+      try {
+        const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
+        if (result && result.length > 0) {
+          return res.json({ success: true, lead: result[0] });
+        }
+      } catch (dbErr) {
+        console.warn(`Lead DB fetch failed for ${id}, checking memory store:`, dbErr);
+      }
     }
-    return res.json({ success: true, lead: result[0] });
+
+    const memLead = memoryLeads.get(id);
+    if (memLead) {
+      return res.json({ success: true, lead: memLead });
+    }
+    return res.status(404).json({ success: false, error: 'Lead not found' });
   } catch (err: any) {
     console.error(`Error fetching lead ${req.params.id}:`, err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// POST /api/leads - Create new lead in Neon database
+// POST /api/leads - Create new lead in Neon database or memory cache
 router.post('/', async (req: Request, res: Response) => {
   try {
     const leadData = req.body;
@@ -168,21 +197,29 @@ router.post('/', async (req: Request, res: Response) => {
       tags: Array.isArray(leadData.tags) ? JSON.stringify(leadData.tags) : (leadData.tags || '[]'),
     };
 
-    await db.insert(leads).values(newLead);
+    memoryLeads.set(leadId, newLead);
+
+    if (db) {
+      try {
+        await db.insert(leads).values(newLead);
+      } catch (dbErr) {
+        console.warn('Persist lead to Neon DB warning:', dbErr);
+      }
+    }
     
     return res.json({
       success: true,
-      message: 'Lead created successfully in Neon database',
+      message: 'Lead created successfully',
       id: leadId,
       lead: newLead
     });
   } catch (err: any) {
-    console.error('Failed to create lead in Neon database:', err);
+    console.error('Failed to create lead:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// PUT /api/leads/:id - Update existing lead in Neon database
+// PUT /api/leads/:id - Update existing lead in Neon database or memory cache
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -205,31 +242,49 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (updates.replyCount !== undefined) updatePayload.replyCount = Number(updates.replyCount);
     if (updates.engagement !== undefined) updatePayload.engagement = Number(updates.engagement);
 
-    await db.update(leads).set(updatePayload).where(eq(leads.id, id));
+    const existingMem = memoryLeads.get(id) || {};
+    memoryLeads.set(id, { ...existingMem, ...updatePayload });
+
+    if (db) {
+      try {
+        await db.update(leads).set(updatePayload).where(eq(leads.id, id));
+      } catch (dbErr) {
+        console.warn('Update lead in Neon DB warning:', dbErr);
+      }
+    }
     
     return res.json({
       success: true,
-      message: 'Lead updated successfully in Neon database',
+      message: 'Lead updated successfully',
       id
     });
   } catch (err: any) {
-    console.error(`Failed to update lead ${req.params.id} in Neon database:`, err);
+    console.error(`Failed to update lead ${req.params.id}:`, err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// DELETE /api/leads/:id - Delete lead from Neon database
+// DELETE /api/leads/:id - Delete lead from Neon database or memory cache
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    await db.delete(leads).where(eq(leads.id, id));
+    memoryLeads.delete(id);
+
+    if (db) {
+      try {
+        await db.delete(leads).where(eq(leads.id, id));
+      } catch (dbErr) {
+        console.warn('Delete lead from Neon DB warning:', dbErr);
+      }
+    }
+
     return res.json({
       success: true,
-      message: 'Lead removed from Neon database',
+      message: 'Lead removed',
       id
     });
   } catch (err: any) {
-    console.error(`Failed to delete lead ${req.params.id} from Neon database:`, err);
+    console.error(`Failed to delete lead ${req.params.id}:`, err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
