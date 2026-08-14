@@ -1,9 +1,9 @@
 import "dotenv/config";
 import express from "express";
 import { GoogleGenAI, Type } from "@google/genai";
-import { initDbTables } from "./db/init.js";
-import apiRouter, { apiErrorHandler, apiNotFoundHandler } from "./api/index.js";
-import { handleSignup, handleLogin } from "./api/auth.js";
+import { initDbTables } from "./db/init";
+import apiRouter, { apiErrorHandler, apiNotFoundHandler } from "./api/index";
+import { handleSignup, handleLogin } from "./api/auth";
 
 /**
  * Builds and configures the Express app (routes, middleware, Gemini endpoints)
