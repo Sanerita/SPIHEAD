@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
-import { db } from '../db/index';
-import { users } from '../db/schema';
-import { usersDb, activeSessions, ServerUser, createSessionToken, getVerifiedSession } from './sessionStore';
-import { handleProviderOAuthFlow } from './auth/[provider]';
+import { db } from '../db/index.js';
+import { users } from '../db/schema.js';
+import { usersDb, activeSessions, ServerUser, createSessionToken, getVerifiedSession } from './sessionStore.js';
+import { handleProviderOAuthFlow } from './auth/[provider].js';
 
 const router = Router();
 
