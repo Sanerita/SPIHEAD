@@ -1,4 +1,4 @@
-import { createApp } from "../src/createApp";
+import { createApp } from "../src/createApp.js";
 
 // Vercel rewrites preserve the ORIGINAL incoming req.url inside the function
 // (the "destination" in vercel.json only decides which function handles the
