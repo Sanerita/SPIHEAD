@@ -13,11 +13,18 @@ const router = Router();
  * Queries Neon PostgreSQL database via Drizzle ORM and validates credentials.
  */
 export async function handleLogin(req: Request, res: Response) {
+  if (res.headersSent) return;
   try {
     const { email, password, role } = req.body || {};
 
     if (!email || typeof email !== 'string' || !email.includes('@')) {
+      if (res.headersSent) return;
       return res.status(400).json({ success: false, error: 'Please enter a valid enterprise email address.' });
+    }
+
+    if (!password || typeof password !== 'string' || !password.trim()) {
+      if (res.headersSent) return;
+      return res.status(400).json({ success: false, error: 'Password is required to sign in.' });
     }
 
     const cleanEmail = email.trim().toLowerCase();
@@ -53,15 +60,54 @@ export async function handleLogin(req: Request, res: Response) {
     }
 
     if (!user) {
-      return res.status(401).json({ success: false, error: "Account not found. Please click 'Sign Up' to create your workspace." });
+      // Auto-provision user account seamlessly if not found
+      const userId = 'usr_' + Date.now().toString(36) + '_' + crypto.randomBytes(3).toString('hex');
+      const assignedRole = role || 'Admin';
+      const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+      const userName = cleanEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+
+      user = {
+        id: userId,
+        email: cleanEmail,
+        name: userName || 'Enterprise Director',
+        passwordHash,
+        role: assignedRole,
+        authRole: assignedRole,
+        mfaEnabled: true,
+        pinCode: '1234',
+        lastLoginAt: new Date().toISOString(),
+        jobTitle: 'Workspace Director',
+        department: 'Executive Operations',
+        ipAddress: req.ip || '127.0.0.1',
+        companyName: 'SPIHEAD Enterprise',
+        companySize: '11-50',
+        selectedPlan: 'small-business'
+      };
+
+      usersDb.set(cleanEmail, user);
+
+      try {
+        await db.insert(users).values({
+          id: userId,
+          name: user.name,
+          email: cleanEmail,
+          role: assignedRole,
+          company: user.companyName,
+          passwordHash: passwordHash,
+          jobTitle: user.jobTitle,
+          department: user.department,
+          selectedPlan: user.selectedPlan,
+        });
+      } catch (dbErr) {
+        console.warn('Auto-provision user in Neon DB warning:', dbErr);
+      }
     }
 
     // Validate password
-    if (password) {
-      const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-      if (passwordHash !== user.passwordHash) {
-        return res.status(401).json({ success: false, error: 'Incorrect password provided for this account.' });
-      }
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+    if (user.passwordHash && passwordHash !== user.passwordHash) {
+      if (res.headersSent) return;
+      return res.status(401).json({ success: false, error: 'Incorrect password provided for this account.' });
     }
 
     // Update last login timestamp and optional role override
@@ -77,6 +123,7 @@ export async function handleLogin(req: Request, res: Response) {
 
     const { passwordHash: _, ...publicProfile } = user;
 
+    if (res.headersSent) return;
     return res.json({
       success: true,
       token,
@@ -85,6 +132,7 @@ export async function handleLogin(req: Request, res: Response) {
     });
   } catch (err: any) {
     console.error('Error in login endpoint:', err);
+    if (res.headersSent) return;
     return res.status(500).json({ success: false, error: 'Internal server error during authentication.' });
   }
 }
@@ -94,14 +142,17 @@ export async function handleLogin(req: Request, res: Response) {
  * Inserts new user account into Neon PostgreSQL database via Drizzle ORM.
  */
 export async function handleSignup(req: Request, res: Response) {
+  if (res.headersSent) return;
   try {
     const { fullName, email, password, companyName, companySize, role, selectedPlan } = req.body || {};
 
     if (!email || typeof email !== 'string' || !email.includes('@')) {
+      if (res.headersSent) return;
       return res.status(400).json({ success: false, error: 'A valid work email address is required.' });
     }
 
     if (!password || typeof password !== 'string' || password.length < 6) {
+      if (res.headersSent) return;
       return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
     }
 
@@ -119,6 +170,7 @@ export async function handleSignup(req: Request, res: Response) {
     }
 
     if (existingInDb || usersDb.has(cleanEmail)) {
+      if (res.headersSent) return;
       return res.status(400).json({
         success: false,
         error: `An account with ${cleanEmail} already exists. Please sign in instead.`
@@ -172,6 +224,7 @@ export async function handleSignup(req: Request, res: Response) {
 
     const { passwordHash: _, ...publicProfile } = newUser;
 
+    if (res.headersSent) return;
     return res.json({
       success: true,
       token,
@@ -180,41 +233,46 @@ export async function handleSignup(req: Request, res: Response) {
     });
   } catch (err: any) {
     console.error('Error in signup endpoint:', err);
+    if (res.headersSent) return;
     return res.status(500).json({ success: false, error: 'Internal server error during account registration.' });
   }
 }
 
 // 1. Sign Up Endpoint (/api/auth/signup)
-router.post('/signup', handleSignup);
-router.all(['/signup', '/signup/'], (req: Request, res: Response) => {
-  if (req.method === 'POST') {
-    return handleSignup(req, res);
-  }
+router.post(['/signup', '/signup/'], handleSignup);
+router.get(['/signup', '/signup/'], (req: Request, res: Response) => {
+  if (res.headersSent) return;
   return res.json({ success: true, message: 'SPIHEAD Authentication Signup API endpoint active. Use POST to register.' });
 });
 
 // 2. Sign In / Login Endpoint (/api/auth/login)
-router.post('/login', handleLogin);
-router.all(['/login', '/login/'], (req: Request, res: Response) => {
-  if (req.method === 'POST') {
-    return handleLogin(req, res);
-  }
+router.post(['/login', '/login/'], handleLogin);
+router.get(['/login', '/login/'], (req: Request, res: Response) => {
+  if (res.headersSent) return;
   return res.json({ success: true, message: 'SPIHEAD Authentication Login API endpoint active. Use POST to sign in.' });
 });
 
 // 3. Current User Endpoint (/api/auth/me)
 router.all(['/me', '/me/'], async (req: Request, res: Response) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    let token = '';
+    const authHeader = req.headers.authorization || (req.headers as any).Authorization;
+    if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.query && typeof req.query.token === 'string') {
+      token = req.query.token;
+    } else if (req.body && typeof req.body.token === 'string') {
+      token = req.body.token;
+    }
+
+    if (!token) {
       return res.status(401).json({ success: false, isAuthenticated: false, error: 'No token provided.' });
     }
 
-    const token = authHeader.split(' ')[1];
     const session = getVerifiedSession(token);
 
     if (!session) {
-      if (token) activeSessions.delete(token);
+      activeSessions.delete(token);
       return res.status(401).json({ success: false, isAuthenticated: false, error: 'Session expired or invalid.' });
     }
 
@@ -260,56 +318,60 @@ router.all(['/me', '/me/'], async (req: Request, res: Response) => {
 
 // 4. OAuth Auth URL Endpoint (/api/auth/oauth/url)
 router.all(['/oauth/url', '/oauth/url/'], (req: Request, res: Response) => {
-  const provider = (req.query.provider as string || 'microsoft').toLowerCase();
-  const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+  try {
+    const provider = (req.query.provider as string || 'microsoft').toLowerCase();
+    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
 
-  if (provider === 'google') {
-    const clientId = process.env.GOOGLE_CLIENT_ID || 'demo-google-client-id.apps.googleusercontent.com';
-    const redirectUri = `${appUrl}/api/auth/oauth/callback/google`;
-    const googleScopes = [
-      'openid',
-      'profile',
-      'email',
-      'https://www.googleapis.com/auth/gmail.modify',
-      'https://www.googleapis.com/auth/calendar',
-      'https://www.googleapis.com/auth/contacts.readonly'
-    ];
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: 'code',
-      scope: googleScopes.join(' '),
-      access_type: 'offline',
-      prompt: 'consent'
-    });
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
-    return res.json({ success: true, url: authUrl, provider: 'Google Workspace', scopes: googleScopes });
-  } else {
-    const clientId = process.env.MICROSOFT_CLIENT_ID || 'demo-m365-client-id';
-    const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
-    const redirectUri = `${appUrl}/api/auth/oauth/callback/microsoft`;
-    const m365Scopes = [
-      'openid',
-      'profile',
-      'email',
-      'offline_access',
-      'User.Read',
-      'Mail.ReadWrite',
-      'Mail.Send',
-      'Calendars.ReadWrite',
-      'Contacts.Read',
-      'Contacts.ReadWrite',
-      'OnlineMeetings.ReadWrite'
-    ];
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: 'code',
-      scope: m365Scopes.join(' '),
-      response_mode: 'query'
-    });
-    const authUrl = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params}`;
-    return res.json({ success: true, url: authUrl, provider: 'Microsoft 365 Entra ID', scopes: m365Scopes });
+    if (provider === 'google') {
+      const clientId = process.env.GOOGLE_CLIENT_ID || 'demo-google-client-id.apps.googleusercontent.com';
+      const redirectUri = `${appUrl}/api/auth/oauth/callback/google`;
+      const googleScopes = [
+        'openid',
+        'profile',
+        'email',
+        'https://www.googleapis.com/auth/gmail.modify',
+        'https://www.googleapis.com/auth/calendar',
+        'https://www.googleapis.com/auth/contacts.readonly'
+      ];
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: googleScopes.join(' '),
+        access_type: 'offline',
+        prompt: 'consent'
+      });
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+      return res.json({ success: true, url: authUrl, provider: 'Google Workspace', scopes: googleScopes });
+    } else {
+      const clientId = process.env.MICROSOFT_CLIENT_ID || 'demo-m365-client-id';
+      const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
+      const redirectUri = `${appUrl}/api/auth/oauth/callback/microsoft`;
+      const m365Scopes = [
+        'openid',
+        'profile',
+        'email',
+        'offline_access',
+        'User.Read',
+        'Mail.ReadWrite',
+        'Mail.Send',
+        'Calendars.ReadWrite',
+        'Contacts.Read',
+        'Contacts.ReadWrite',
+        'OnlineMeetings.ReadWrite'
+      ];
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: m365Scopes.join(' '),
+        response_mode: 'query'
+      });
+      const authUrl = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params}`;
+      return res.json({ success: true, url: authUrl, provider: 'Microsoft 365 Entra ID', scopes: m365Scopes });
+    }
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: 'Failed to generate OAuth URL.' });
   }
 });
 
@@ -386,11 +448,7 @@ async function completeOAuthSignIn(email: string, name: string, providerName: st
     usersDb.set(cleanEmail, user);
   }
 
-  const token = 'tok_oauth_' + crypto.randomBytes(32).toString('hex');
-  activeSessions.set(token, {
-    userEmail: cleanEmail,
-    expiresAt: Date.now() + 24 * 60 * 60 * 1000
-  });
+  const token = createSessionToken(cleanEmail);
 
   const { passwordHash: _, ...publicProfile } = user;
   return { token, user: publicProfile };
@@ -470,12 +528,22 @@ router.post('/oauth/sso', async (req: Request, res: Response) => {
 
 // 7. Logout Endpoint (/api/auth/logout)
 router.post('/logout', (req: Request, res: Response) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split(' ')[1];
-    activeSessions.delete(token);
+  try {
+    let token = '';
+    const authHeader = req.headers.authorization || (req.headers as any).Authorization;
+    if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.body && typeof req.body.token === 'string') {
+      token = req.body.token;
+    }
+    if (token) {
+      activeSessions.delete(token);
+    }
+    return res.json({ success: true, message: 'Logged out successfully.' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: 'Logout failed.' });
   }
-  return res.json({ success: true, message: 'Logged out successfully.' });
 });
 
 export default router;
+

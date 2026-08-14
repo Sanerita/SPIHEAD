@@ -37,14 +37,14 @@ export async function createApp() {
   const loginPaths = ['/api/auth/login', '/api/login', '/auth/login', '/login'];
 
   app.post(signupPaths, handleSignup);
-  app.all(signupPaths, (req, res) => {
-    if (req.method === 'POST') return handleSignup(req, res);
+  app.get(signupPaths, (req, res) => {
+    if (res.headersSent) return;
     return res.json({ success: true, message: 'SPIHEAD Authentication Signup API active.' });
   });
 
   app.post(loginPaths, handleLogin);
-  app.all(loginPaths, (req, res) => {
-    if (req.method === 'POST') return handleLogin(req, res);
+  app.get(loginPaths, (req, res) => {
+    if (res.headersSent) return;
     return res.json({ success: true, message: 'SPIHEAD Authentication Login API active.' });
   });
 
@@ -68,7 +68,6 @@ export async function createApp() {
 
   // Mount API handlers from src/api (auth, leads)
   app.use('/api', apiRouter);
-  app.use(apiRouter);
 
   // Helper to initialize Gemini client lazily per request
   const getGeminiClient = () => {

@@ -36,6 +36,22 @@ export const SEED_USERS: ServerUser[] = [
     selectedPlan: "small-business"
   },
   {
+    id: "usr_001_gmail",
+    email: "sanelisiwe.sileku@gmail.com",
+    name: "Sanelisiwe Sileku",
+    passwordHash: crypto.createHash("sha256").update("Password123!").digest("hex"),
+    role: "Owner",
+    authRole: "Owner",
+    mfaEnabled: true,
+    pinCode: "1234",
+    lastLoginAt: new Date().toISOString(),
+    jobTitle: "Chief Executive Officer / Founder",
+    department: "Executive Operations",
+    ipAddress: "197.189.204.12",
+    companyName: "SPIHEAD Enterprise",
+    selectedPlan: "small-business"
+  },
+  {
     id: "usr_002_admin",
     email: "admin@spihead.com",
     name: "SPIHEAD Administrator",

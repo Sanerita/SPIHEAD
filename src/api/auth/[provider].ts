@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '../../db/index';
 import { users } from '../../db/schema';
-import { usersDb, activeSessions, ServerUser } from '../sessionStore';
+import { usersDb, activeSessions, ServerUser, createSessionToken } from '../sessionStore';
 
 const router = Router();
 
@@ -218,12 +218,8 @@ export async function secureUserSessionMapping(profile: UserProfile, req: Reques
     usersDb.set(cleanEmail, user);
   }
 
-  // Generate 24h active session token
-  const token = 'tok_oauth_' + crypto.randomBytes(32).toString('hex');
-  activeSessions.set(token, {
-    userEmail: cleanEmail,
-    expiresAt: Date.now() + 24 * 60 * 60 * 1000
-  });
+  // Generate 24h stateless active session token
+  const token = createSessionToken(cleanEmail);
 
   const { passwordHash: _, ...publicProfile } = user;
   return { token, user: publicProfile };
@@ -269,6 +265,7 @@ function renderOAuthSuccessHtml(token: string, user: any, provider: string) {
  * Route Handler for /api/auth/[provider] or /api/auth/callback/[provider]
  */
 export async function handleProviderOAuthFlow(req: Request, res: Response) {
+  if (res.headersSent) return;
   try {
     const providerParam = (req.params as any).provider || (req.query.provider as string) || 'google';
     const code = (req.query.code as string) || (req.body && req.body.code) || 'demo_auth_code_' + Date.now();
@@ -281,6 +278,8 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
 
     // Securely map user to session and save in Neon DB
     const { token, user } = await secureUserSessionMapping(profile, req);
+
+    if (res.headersSent) return;
 
     if (req.headers.accept && req.headers.accept.includes('text/html')) {
       res.setHeader('Content-Type', 'text/html');
@@ -296,6 +295,7 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
     });
   } catch (err: any) {
     console.error('OAuth [provider] handler error:', err);
+    if (res.headersSent) return;
     if (req.headers.accept && req.headers.accept.includes('text/html')) {
       return res.status(500).send(`<html><body style="font-family:sans-serif;padding:2rem;"><h2>OAuth Authentication Error</h2><p>${err.message}</p></body></html>`);
     }
