@@ -9,9 +9,12 @@ export default async function handler(req: any, res: any) {
     }
     const app = await appPromise;
 
-    if (req.headers['x-forwarded-uri']) {
-      req.url = req.headers['x-forwarded-uri'];
-    } else if (req.url && !req.url.startsWith('/api')) {
+    const originalUrl = req.headers['x-forwarded-uri'] || req.headers['x-matched-path'] || req.url;
+    if (typeof originalUrl === 'string' && originalUrl.length > 0 && !originalUrl.startsWith('/api/index')) {
+      req.url = originalUrl;
+    }
+
+    if (req.url && !req.url.startsWith('/api')) {
       req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
     }
 

@@ -13,9 +13,14 @@ export default async function handler(req: any, res: any) {
       const slugPath = Array.isArray(req.query.slug) ? req.query.slug.join('/') : req.query.slug;
       const queryString = req.url && req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
       req.url = '/api/' + slugPath + queryString;
-    } else if (req.headers['x-forwarded-uri']) {
-      req.url = req.headers['x-forwarded-uri'];
-    } else if (req.url && !req.url.startsWith('/api')) {
+    } else {
+      const originalUrl = req.headers['x-forwarded-uri'] || req.headers['x-matched-path'] || req.url;
+      if (typeof originalUrl === 'string' && originalUrl.length > 0 && !originalUrl.startsWith('/api/[...slug]')) {
+        req.url = originalUrl;
+      }
+    }
+
+    if (req.url && !req.url.startsWith('/api')) {
       req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
     }
 
