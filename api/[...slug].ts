@@ -9,16 +9,17 @@ export default async function handler(req: any, res: any) {
     }
     const app = await appPromise;
 
-    let targetUrl = '';
+    let targetUrl = req.url || '';
 
-    if (req.query && req.query.slug) {
+    // If req.url is already a valid clean /api path (e.g. /api/auth/signup), keep it as is
+    if (targetUrl.startsWith('/api/') && !targetUrl.startsWith('/api/index') && !targetUrl.startsWith('/api/[...slug]')) {
+      // Intact path
+    } else if (req.query && req.query.slug) {
       const slugPath = Array.isArray(req.query.slug) ? req.query.slug.join('/') : req.query.slug;
-      const queryString = req.url && req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
+      const queryString = targetUrl.includes('?') ? '?' + targetUrl.split('?')[1] : '';
       targetUrl = '/api/' + slugPath + queryString;
     } else if (req.headers['x-forwarded-uri'] && typeof req.headers['x-forwarded-uri'] === 'string') {
       targetUrl = req.headers['x-forwarded-uri'];
-    } else {
-      targetUrl = req.url || '';
     }
 
     if (!targetUrl || targetUrl === '/') {
