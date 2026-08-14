@@ -474,7 +474,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
       {/* Edit Mode Inline Drawer/Form */}
       {isEditing && (
-        <form onSubmit={handleSaveProfile} className="bg-white p-6 rounded-2xl border border-gold-300/80 shadow-md space-y-6">
+        <form action="#" onSubmit={handleSaveProfile} className="bg-white p-6 rounded-2xl border border-gold-300/80 shadow-md space-y-6">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3 text-navy-900">
             <h3 className="font-black text-lg flex items-center gap-2">
               <Edit3 className="h-5 w-5 text-gold-500" /> Edit Executive Profile & Sales Quota
@@ -490,9 +490,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Full Display Name</label>
+              <label htmlFor="prof-displayname" className="block text-xs font-bold text-slate-700 mb-1">Full Display Name</label>
               <input
+                id="prof-displayname"
+                name="displayName"
                 type="text"
+                autoComplete="name"
                 required
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
@@ -501,9 +504,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Work Email Address</label>
+              <label htmlFor="prof-email" className="block text-xs font-bold text-slate-700 mb-1">Work Email Address</label>
               <input
+                id="prof-email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -512,8 +518,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">User Principal Name (M365)</label>
+              <label htmlFor="prof-upn" className="block text-xs font-bold text-slate-700 mb-1">User Principal Name (M365)</label>
               <input
+                id="prof-upn"
+                name="userPrincipalName"
                 type="text"
                 required
                 value={userPrincipalName}
@@ -523,9 +531,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Job Title</label>
+              <label htmlFor="prof-jobtitle" className="block text-xs font-bold text-slate-700 mb-1">Job Title</label>
               <input
+                id="prof-jobtitle"
+                name="jobTitle"
                 type="text"
+                autoComplete="organization-title"
                 required
                 value={jobTitle}
                 onChange={(e) => setJobTitle(e.target.value)}
@@ -534,9 +545,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Company / Organization</label>
+              <label htmlFor="prof-company" className="block text-xs font-bold text-slate-700 mb-1">Company / Organization</label>
               <input
+                id="prof-company"
+                name="companyName"
                 type="text"
+                autoComplete="organization"
                 required
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
@@ -545,8 +559,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Department</label>
+              <label htmlFor="prof-dept" className="block text-xs font-bold text-slate-700 mb-1">Department</label>
               <input
+                id="prof-dept"
+                name="department"
                 type="text"
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
@@ -555,9 +571,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
+              <label htmlFor="prof-phone" className="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
               <input
+                id="prof-phone"
+                name="phoneNumber"
                 type="text"
+                autoComplete="tel"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none"
@@ -565,8 +584,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Quarterly Quota Target ($)</label>
+              <label htmlFor="prof-salestarget" className="block text-xs font-bold text-slate-700 mb-1">Quarterly Quota Target ($)</label>
               <input
+                id="prof-salestarget"
+                name="salesTarget"
                 type="number"
                 min="0"
                 step="1000"
@@ -577,8 +598,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Sales Territory / Region</label>
+              <label htmlFor="prof-territory" className="block text-xs font-bold text-slate-700 mb-1">Sales Territory / Region</label>
               <input
+                id="prof-territory"
+                name="territory"
                 type="text"
                 value={territory}
                 onChange={(e) => setTerritory(e.target.value)}
@@ -588,8 +611,10 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Professional Bio / Executive Summary</label>
+            <label htmlFor="prof-bio" className="block text-xs font-bold text-slate-700 mb-1">Professional Bio / Executive Summary</label>
             <textarea
+              id="prof-bio"
+              name="bio"
               rows={3}
               value={bio}
               onChange={(e) => setBio(e.target.value)}
@@ -775,7 +800,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
           </div>
 
-          <form onSubmit={handlePasswordSubmit} className="max-w-lg space-y-4">
+          <form action="#" onSubmit={handlePasswordSubmit} className="max-w-lg space-y-4">
             {passwordError && (
               <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-medium flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 shrink-0" />
@@ -791,10 +816,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             )}
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Current Password</label>
+              <label htmlFor="current-pass" className="block text-xs font-bold text-slate-700 mb-1">Current Password</label>
               <div className="relative">
                 <input
+                  id="current-pass"
+                  name="currentPassword"
                   type="password"
+                  autoComplete="current-password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="••••••••••••"
@@ -805,10 +833,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">New Password</label>
+              <label htmlFor="new-pass" className="block text-xs font-bold text-slate-700 mb-1">New Password</label>
               <div className="relative">
                 <input
+                  id="new-pass"
+                  name="newPassword"
                   type="password"
+                  autoComplete="new-password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Minimum 8 characters"
@@ -819,10 +850,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Confirm New Password</label>
+              <label htmlFor="confirm-pass" className="block text-xs font-bold text-slate-700 mb-1">Confirm New Password</label>
               <div className="relative">
                 <input
+                  id="confirm-pass"
+                  name="confirmPassword"
                   type="password"
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Re-enter new password"

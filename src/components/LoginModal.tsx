@@ -120,7 +120,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onNaviga
         </div>
 
         {step === 'credentials' ? (
-          <form onSubmit={handleCredentialsSubmit} className="space-y-4">
+          <form action="#" onSubmit={handleCredentialsSubmit} className="space-y-4">
             
             {/* OAuth Single Sign-On Buttons Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -174,10 +174,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onNaviga
 
             {/* Email Field */}
             <div className="space-y-1">
-              <label className="block text-xs font-bold text-navy-200">Enterprise Email Address</label>
+              <label htmlFor="login-email" className="block text-xs font-bold text-navy-200">Enterprise Email Address</label>
               <div className="relative">
                 <input
+                  id="login-email"
+                  name="email"
                   type="email"
+                  autoComplete="username email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@company.com"
@@ -190,10 +193,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onNaviga
 
             {/* Password Field */}
             <div className="space-y-1">
-              <label className="block text-xs font-bold text-navy-200">Security Password</label>
+              <label htmlFor="login-password" className="block text-xs font-bold text-navy-200">Security Password</label>
               <div className="relative">
                 <input
+                  id="login-password"
+                  name="password"
                   type="password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
@@ -254,7 +260,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onNaviga
             )}
           </form>
         ) : (
-          <form onSubmit={handleMfaSubmit} className="space-y-4">
+          <form action="#" onSubmit={handleMfaSubmit} className="space-y-4">
             <div className="p-4 bg-navy-950 border border-navy-800 rounded-2xl space-y-2 text-center">
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-950 text-emerald-300 border border-emerald-500/40 uppercase tracking-wider inline-block">
                 MFA Required
@@ -265,9 +271,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess, onNaviga
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-navy-200 text-center">2FA Authenticator Passcode</label>
+              <label htmlFor="login-mfa-code" className="block text-xs font-bold text-navy-200 text-center">2FA Authenticator Passcode</label>
               <input
+                id="login-mfa-code"
+                name="mfaCode"
                 type="text"
+                autoComplete="one-time-code"
                 maxLength={6}
                 value={mfaCode}
                 onChange={(e) => setMfaCode(e.target.value)}

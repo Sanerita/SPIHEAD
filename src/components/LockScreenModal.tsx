@@ -63,14 +63,17 @@ export const LockScreenModal: React.FC<LockScreenModalProps> = ({ onUnlocked }) 
         </div>
 
         {/* PIN Input Form */}
-        <form onSubmit={handleUnlock} className="space-y-4">
+        <form action="#" onSubmit={handleUnlock} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="block text-xs font-extrabold text-navy-200 uppercase tracking-wider flex items-center gap-1.5">
+            <label htmlFor="lockscreen-pin" className="block text-xs font-extrabold text-navy-200 uppercase tracking-wider flex items-center gap-1.5">
               <KeyRound className="h-3.5 w-3.5 text-gold-400" />
               Enter 4-Digit Security PIN
             </label>
             <input
+              id="lockscreen-pin"
+              name="pin"
               type="password"
+              autoComplete="current-password"
               maxLength={6}
               value={pin}
               onChange={(e) => setPin(e.target.value)}

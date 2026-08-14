@@ -105,15 +105,18 @@ export const BusinessCustomizerModal: React.FC<BusinessCustomizerModalProps> = (
           Configure your organization profile below. The Gemini AI scoring engine, pipeline deal stages, email templates, and automated recommendations will dynamically tailor themselves to your exact product offerings and target buyers.
         </p>
 
-        <form onSubmit={handleApplyAdaptation} className="space-y-5">
+        <form action="#" onSubmit={handleApplyAdaptation} className="space-y-5">
           {/* Company Name & Industry Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-navy-900 mb-1">
+              <label htmlFor="biz-company" className="block text-xs font-bold text-navy-900 mb-1">
                 Company / Organization Name <span className="text-rose-500">*</span>
               </label>
               <input
+                id="biz-company"
+                name="companyName"
                 type="text"
+                autoComplete="organization"
                 required
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
@@ -123,10 +126,12 @@ export const BusinessCustomizerModal: React.FC<BusinessCustomizerModalProps> = (
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-navy-900 mb-1">
+              <label htmlFor="biz-industry" className="block text-xs font-bold text-navy-900 mb-1">
                 Primary Industry & Sector
               </label>
               <select
+                id="biz-industry"
+                name="industry"
                 value={industry}
                 onChange={(e) => setIndustry(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 outline-none font-medium bg-white"
@@ -143,10 +148,12 @@ export const BusinessCustomizerModal: React.FC<BusinessCustomizerModalProps> = (
           {/* Products/Services & Target Audience */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-navy-900 mb-1">
+              <label htmlFor="biz-products" className="block text-xs font-bold text-navy-900 mb-1">
                 Core Products / Services Offering
               </label>
               <input
+                id="biz-products"
+                name="productsAndServices"
                 type="text"
                 value={productsAndServices}
                 onChange={(e) => setProductsAndServices(e.target.value)}
@@ -156,10 +163,12 @@ export const BusinessCustomizerModal: React.FC<BusinessCustomizerModalProps> = (
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-navy-900 mb-1">
+              <label htmlFor="biz-target" className="block text-xs font-bold text-navy-900 mb-1">
                 Ideal Customer Profile / Buyers
               </label>
               <input
+                id="biz-target"
+                name="targetAudience"
                 type="text"
                 value={targetAudience}
                 onChange={(e) => setTargetAudience(e.target.value)}
@@ -177,10 +186,12 @@ export const BusinessCustomizerModal: React.FC<BusinessCustomizerModalProps> = (
 
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                <label htmlFor="biz-term-singular" className="block text-[11px] font-bold text-slate-600 mb-1">
                   Singular Term
                 </label>
                 <input
+                  id="biz-term-singular"
+                  name="leadTermSingular"
                   type="text"
                   value={leadTermSingular}
                   onChange={(e) => setLeadTermSingular(e.target.value)}
@@ -190,10 +201,12 @@ export const BusinessCustomizerModal: React.FC<BusinessCustomizerModalProps> = (
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                <label htmlFor="biz-term-plural" className="block text-[11px] font-bold text-slate-600 mb-1">
                   Plural Term
                 </label>
                 <input
+                  id="biz-term-plural"
+                  name="leadTermPlural"
                   type="text"
                   value={leadTermPlural}
                   onChange={(e) => setLeadTermPlural(e.target.value)}
@@ -203,10 +216,12 @@ export const BusinessCustomizerModal: React.FC<BusinessCustomizerModalProps> = (
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                <label htmlFor="biz-currency" className="block text-[11px] font-bold text-slate-600 mb-1">
                   Preferred Currency
                 </label>
                 <select
+                  id="biz-currency"
+                  name="currency"
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
                   className="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold bg-white"

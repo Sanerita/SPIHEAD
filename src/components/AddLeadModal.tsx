@@ -78,16 +78,19 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-sm text-slate-700">
+        <form action="#" onSubmit={handleSubmit} className="p-6 space-y-4 text-sm text-slate-700">
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+              <label htmlFor="lead-name" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                 Full Name *
               </label>
               <div className="relative">
                 <input
+                  id="lead-name"
+                  name="name"
                   type="text"
+                  autoComplete="name"
                   required
                   placeholder="Full Name"
                   value={name}
@@ -98,11 +101,14 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+              <label htmlFor="lead-company" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                 Company Name *
               </label>
               <input
+                id="lead-company"
+                name="company"
                 type="text"
+                autoComplete="organization"
                 required
                 placeholder="Company Name"
                 value={company}
@@ -114,11 +120,14 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+              <label htmlFor="lead-email" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                 Email Address *
               </label>
               <input
+                id="lead-email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 required
                 placeholder="email@company.com"
                 value={email}
@@ -128,11 +137,14 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+              <label htmlFor="lead-phone" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                 Phone Number
               </label>
               <input
+                id="lead-phone"
+                name="phone"
                 type="tel"
+                autoComplete="tel"
                 placeholder="+1 (555) 000-0000"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -143,10 +155,12 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+              <label htmlFor="lead-budget" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                 Estimated Budget ($)
               </label>
               <input
+                id="lead-budget"
+                name="budget"
                 type="number"
                 min={0}
                 step={1000}
@@ -157,10 +171,12 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+              <label htmlFor="lead-status" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                 Initial Pipeline Status
               </label>
               <select
+                id="lead-status"
+                name="status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value as LeadStatus)}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-gold-400 focus:outline-none bg-white"
@@ -176,10 +192,12 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+              <label htmlFor="lead-industry" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                 Industry Sector
               </label>
               <input
+                id="lead-industry"
+                name="industry"
                 type="text"
                 list="standard-industries-list"
                 placeholder="Select or type industry sector..."
@@ -195,10 +213,12 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+              <label htmlFor="lead-engagement" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                 Engagement Rating (1 - 5)
               </label>
               <input
+                id="lead-engagement"
+                name="engagement"
                 type="range"
                 min={1}
                 max={5}
@@ -218,6 +238,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
             <input
               type="checkbox"
               id="urgency"
+              name="urgency"
               checked={urgency}
               onChange={(e) => setUrgency(e.target.checked)}
               className="rounded text-gold-500 focus:ring-gold-400 h-4 w-4"
@@ -228,10 +249,12 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+            <label htmlFor="lead-notes" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
               Lead Notes & Discovery Details
             </label>
             <textarea
+              id="lead-notes"
+              name="notes"
               rows={3}
               placeholder="Key pain points, software stack, Microsoft 365 requirements..."
               value={notes}

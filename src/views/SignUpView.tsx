@@ -375,7 +375,7 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
 
             {/* FORM STEP 1 */}
             {currentStep === 1 ? (
-              <form onSubmit={handleSignUpSubmit} className="space-y-4">
+              <form action="#" onSubmit={handleSignUpSubmit} className="space-y-4">
                 
                 {/* One-Click OAuth SSO Sign Up Options */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -411,10 +411,13 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
                 {/* Full Name & Work Email Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="block text-xs font-bold text-slate-300">Full Name</label>
+                    <label htmlFor="signup-fullname" className="block text-xs font-bold text-slate-300">Full Name</label>
                     <div className="relative">
                       <input
+                        id="signup-fullname"
+                        name="fullName"
                         type="text"
+                        autoComplete="name"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
                         placeholder="First and last name"
@@ -426,10 +429,13 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-xs font-bold text-slate-300">Work Email Address</label>
+                    <label htmlFor="signup-email" className="block text-xs font-bold text-slate-300">Work Email Address</label>
                     <div className="relative">
                       <input
+                        id="signup-email"
+                        name="email"
                         type="email"
+                        autoComplete="username email"
                         value={workEmail}
                         onChange={(e) => setWorkEmail(e.target.value)}
                         placeholder="name@company.com"
@@ -444,10 +450,13 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
                 {/* Company Name & Industry Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="block text-xs font-bold text-slate-300">Company / Workspace Name</label>
+                    <label htmlFor="signup-company" className="block text-xs font-bold text-slate-300">Company / Workspace Name</label>
                     <div className="relative">
                       <input
+                        id="signup-company"
+                        name="companyName"
                         type="text"
+                        autoComplete="organization"
                         value={companyName}
                         onChange={(e) => setCompanyName(e.target.value)}
                         placeholder="Organization or company name"
@@ -463,9 +472,11 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-xs font-bold text-slate-300">Industry & Sector Adaptation</label>
+                    <label htmlFor="signup-industry" className="block text-xs font-bold text-slate-300">Industry & Sector Adaptation</label>
                     <div className="relative">
                       <select
+                        id="signup-industry"
+                        name="industry"
                         value={selectedIndustry}
                         onChange={(e) => setSelectedIndustry(e.target.value)}
                         className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-gold-400 appearance-none cursor-pointer"
@@ -487,9 +498,11 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
                 {/* Company Size & Role Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="block text-xs font-bold text-slate-300">Company Size</label>
+                    <label htmlFor="signup-companysize" className="block text-xs font-bold text-slate-300">Company Size</label>
                     <div className="relative">
                       <select
+                        id="signup-companysize"
+                        name="companySize"
                         value={companySize}
                         onChange={(e) => setCompanySize(e.target.value)}
                         className="w-full pl-9 pr-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-gold-400 appearance-none cursor-pointer"
@@ -539,7 +552,7 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
                 {/* Password Input & Strength Indicator */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-slate-300">Security Password</label>
+                    <label htmlFor="signup-password" className="block text-xs font-bold text-slate-300">Security Password</label>
                     {password && (
                       <span className={`text-[10px] font-bold font-mono ${strength.text}`}>
                         {strength.label}
@@ -549,7 +562,10 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
 
                   <div className="relative">
                     <input
+                      id="signup-password"
+                      name="password"
                       type={showPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Password (min. 8 characters)"
@@ -582,6 +598,7 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
                   <input
                     type="checkbox"
                     id="terms"
+                    name="terms"
                     checked={agreeTerms}
                     onChange={(e) => setAgreeTerms(e.target.checked)}
                     className="mt-0.5 rounded bg-slate-950 border-slate-800 text-gold-500 focus:ring-gold-400"
@@ -613,7 +630,7 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
               </form>
             ) : (
               /* FORM STEP 2: Multi-Factor & Final Workspace Confirmation */
-              <form onSubmit={handleSignUpSubmit} className="space-y-5 animate-fadeIn">
+              <form action="#" onSubmit={handleSignUpSubmit} className="space-y-5 animate-fadeIn">
                 <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-center space-y-2">
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider inline-block font-mono">
                     Step 2 of 2 • Multi-Factor Verification
@@ -624,11 +641,14 @@ export const SignUpView: React.FC<SignUpViewProps> = ({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-xs font-bold text-slate-300 text-center">
+                  <label htmlFor="signup-mfa-passcode" className="block text-xs font-bold text-slate-300 text-center">
                     Enter Authenticator Passcode
                   </label>
                   <input
+                    id="signup-mfa-passcode"
+                    name="mfaPasscode"
                     type="text"
+                    autoComplete="one-time-code"
                     maxLength={6}
                     value={mfaPasscode}
                     onChange={(e) => setMfaPasscode(e.target.value)}

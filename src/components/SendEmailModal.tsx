@@ -107,7 +107,7 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-sm text-slate-700">
+        <form action="#" onSubmit={handleSubmit} className="p-6 space-y-4 text-sm text-slate-700">
           
           {/* Recipient Details */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between text-xs">
@@ -145,10 +145,12 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+            <label htmlFor="email-subject" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
               Subject Line *
             </label>
             <input
+              id="email-subject"
+              name="subject"
               type="text"
               required
               value={subject}
@@ -158,10 +160,12 @@ export const SendEmailModal: React.FC<SendEmailModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+            <label htmlFor="email-body" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
               Email Body *
             </label>
             <textarea
+              id="email-body"
+              name="body"
               rows={6}
               required
               value={body}

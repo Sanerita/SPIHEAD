@@ -530,10 +530,12 @@ export const M365HubView: React.FC<M365HubViewProps> = ({
               </span>
             </div>
 
-            <form onSubmit={handleSendOutlookMail} className="space-y-4 text-xs">
+            <form action="#" onSubmit={handleSendOutlookMail} className="space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Select Target Lead</label>
+                <label htmlFor="m365-target-lead" className="block font-bold text-slate-700 mb-1">Select Target Lead</label>
                 <select
+                  id="m365-target-lead"
+                  name="selectedLeadForMail"
                   value={selectedLeadForMail}
                   onChange={(e) => setSelectedLeadForMail(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white text-navy-900"
@@ -548,8 +550,10 @@ export const M365HubView: React.FC<M365HubViewProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Select Email Template</label>
+                  <label htmlFor="m365-template" className="block font-bold text-slate-700 mb-1">Select Email Template</label>
                   <select
+                    id="m365-template"
+                    name="emailTemplate"
                     value={emailTemplate}
                     onChange={(e) => handleTemplateChange(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white text-navy-900"
@@ -561,8 +565,10 @@ export const M365HubView: React.FC<M365HubViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Email Subject Line</label>
+                  <label htmlFor="m365-subject" className="block font-bold text-slate-700 mb-1">Email Subject Line</label>
                   <input
+                    id="m365-subject"
+                    name="emailSubject"
                     type="text"
                     value={emailSubject}
                     onChange={(e) => setEmailSubject(e.target.value)}
@@ -573,8 +579,10 @@ export const M365HubView: React.FC<M365HubViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Email Body Content</label>
+                <label htmlFor="m365-body" className="block font-bold text-slate-700 mb-1">Email Body Content</label>
                 <textarea
+                  id="m365-body"
+                  name="emailBody"
                   rows={6}
                   value={emailBody}
                   onChange={(e) => setEmailBody(e.target.value)}
@@ -635,10 +643,12 @@ export const M365HubView: React.FC<M365HubViewProps> = ({
               <h3 className="font-extrabold text-navy-900 text-base">Schedule Microsoft Teams Meeting</h3>
             </div>
 
-            <form onSubmit={handleCreateTeamsMeeting} className="space-y-4 text-xs">
+            <form action="#" onSubmit={handleCreateTeamsMeeting} className="space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Meeting Title</label>
+                <label htmlFor="teams-title" className="block font-bold text-slate-700 mb-1">Meeting Title</label>
                 <input
+                  id="teams-title"
+                  name="teamsTitle"
                   type="text"
                   value={teamsTitle}
                   onChange={(e) => setTeamsTitle(e.target.value)}
@@ -648,8 +658,10 @@ export const M365HubView: React.FC<M365HubViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Lead Attendee</label>
+                <label htmlFor="teams-lead" className="block font-bold text-slate-700 mb-1">Lead Attendee</label>
                 <select
+                  id="teams-lead"
+                  name="teamsLeadId"
                   value={teamsLeadId}
                   onChange={(e) => setTeamsLeadId(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white text-navy-900"
@@ -664,8 +676,10 @@ export const M365HubView: React.FC<M365HubViewProps> = ({
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Date</label>
+                  <label htmlFor="teams-date" className="block font-bold text-slate-700 mb-1">Date</label>
                   <input
+                    id="teams-date"
+                    name="teamsDate"
                     type="date"
                     value={teamsDate}
                     onChange={(e) => setTeamsDate(e.target.value)}
@@ -673,8 +687,10 @@ export const M365HubView: React.FC<M365HubViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Time</label>
+                  <label htmlFor="teams-time" className="block font-bold text-slate-700 mb-1">Time</label>
                   <input
+                    id="teams-time"
+                    name="teamsTime"
                     type="time"
                     value={teamsTime}
                     onChange={(e) => setTeamsTime(e.target.value)}
@@ -682,8 +698,10 @@ export const M365HubView: React.FC<M365HubViewProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Duration</label>
+                  <label htmlFor="teams-duration" className="block font-bold text-slate-700 mb-1">Duration</label>
                   <select
+                    id="teams-duration"
+                    name="teamsDuration"
                     value={teamsDuration}
                     onChange={(e) => setTeamsDuration(Number(e.target.value))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white text-navy-900"

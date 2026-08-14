@@ -654,6 +654,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             <form
+              action="#"
               onSubmit={(e) => {
                 e.preventDefault();
                 setIsAdaptingBiz(true);
@@ -676,9 +677,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Company / Organization Name</label>
+                  <label htmlFor="settings-biz-name" className="block font-bold text-slate-700 mb-1">Company / Organization Name</label>
                   <input
+                    id="settings-biz-name"
+                    name="bizCompanyName"
                     type="text"
+                    autoComplete="organization"
                     required
                     value={bizCompanyName}
                     onChange={(e) => setBizCompanyName(e.target.value)}
@@ -687,8 +691,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Primary Industry & Business Sector</label>
+                  <label htmlFor="settings-biz-industry" className="block font-bold text-slate-700 mb-1">Primary Industry & Business Sector</label>
                   <select
+                    id="settings-biz-industry"
+                    name="bizIndustry"
                     value={bizIndustry}
                     onChange={(e) => setBizIndustry(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"
@@ -704,8 +710,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Core Products / Services Offerings</label>
+                  <label htmlFor="settings-biz-offerings" className="block font-bold text-slate-700 mb-1">Core Products / Services Offerings</label>
                   <input
+                    id="settings-biz-offerings"
+                    name="bizOfferings"
                     type="text"
                     value={bizOfferings}
                     onChange={(e) => setBizOfferings(e.target.value)}
@@ -715,8 +723,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Ideal Buyer / Target Audience</label>
+                  <label htmlFor="settings-biz-audience" className="block font-bold text-slate-700 mb-1">Ideal Buyer / Target Audience</label>
                   <input
+                    id="settings-biz-audience"
+                    name="bizTargetAudience"
                     type="text"
                     value={bizTargetAudience}
                     onChange={(e) => setBizTargetAudience(e.target.value)}
@@ -728,8 +738,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Singular Term</label>
+                  <label htmlFor="settings-biz-singular" className="block font-bold text-slate-700 mb-1">Singular Term</label>
                   <input
+                    id="settings-biz-singular"
+                    name="bizLeadSingular"
                     type="text"
                     value={bizLeadSingular}
                     onChange={(e) => setBizLeadSingular(e.target.value)}
@@ -738,8 +750,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Plural Term</label>
+                  <label htmlFor="settings-biz-plural" className="block font-bold text-slate-700 mb-1">Plural Term</label>
                   <input
+                    id="settings-biz-plural"
+                    name="bizLeadPlural"
                     type="text"
                     value={bizLeadPlural}
                     onChange={(e) => setBizLeadPlural(e.target.value)}
@@ -748,8 +762,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Billing Currency</label>
+                  <label htmlFor="settings-biz-currency" className="block font-bold text-slate-700 mb-1">Billing Currency</label>
                   <select
+                    id="settings-biz-currency"
+                    name="bizCurrency"
                     value={bizCurrency}
                     onChange={(e) => setBizCurrency(e.target.value)}
                     className="w-full px-3 py-1.5 border border-slate-300 rounded-lg font-semibold bg-white"

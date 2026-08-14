@@ -80,12 +80,14 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-sm text-slate-700">
+        <form action="#" onSubmit={handleSubmit} className="p-6 space-y-4 text-sm text-slate-700">
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+            <label htmlFor="meeting-lead" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
               Select Lead / Participant *
             </label>
             <select
+              id="meeting-lead"
+              name="leadId"
               value={selectedLeadId}
               onChange={(e) => setSelectedLeadId(e.target.value)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-gold-400 focus:outline-none bg-white font-medium text-navy-900"
@@ -99,10 +101,12 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+            <label htmlFor="meeting-title" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
               Meeting Title *
             </label>
             <input
+              id="meeting-title"
+              name="title"
               type="text"
               required
               value={title}
@@ -113,10 +117,12 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+              <label htmlFor="meeting-date" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                 Date *
               </label>
               <input
+                id="meeting-date"
+                name="date"
                 type="date"
                 required
                 value={date}
@@ -126,10 +132,12 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+              <label htmlFor="meeting-time" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                 Start Time *
               </label>
               <input
+                id="meeting-time"
+                name="time"
                 type="time"
                 required
                 value={time}
@@ -139,10 +147,12 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+              <label htmlFor="meeting-duration" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                 Duration
               </label>
               <select
+                id="meeting-duration"
+                name="durationMinutes"
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(Number(e.target.value))}
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-gold-400 focus:outline-none bg-white text-xs"
@@ -158,15 +168,16 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
           {/* Microsoft Teams Option Toggle */}
           <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-3.5 space-y-2">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+              <label htmlFor="isTeams" className="flex items-center gap-2 cursor-pointer">
                 <Video className="h-4 w-4 text-purple-700" />
                 <span className="font-bold text-xs text-purple-900">
                   Microsoft Teams Meeting
                 </span>
-              </div>
+              </label>
               <input
                 type="checkbox"
                 id="isTeams"
+                name="isTeams"
                 checked={isTeamsMeeting}
                 onChange={(e) => setIsTeamsMeeting(e.target.checked)}
                 className="rounded text-purple-600 focus:ring-purple-500 h-4 w-4"
@@ -178,10 +189,12 @@ export const ScheduleMeetingModal: React.FC<ScheduleMeetingModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+            <label htmlFor="meeting-notes" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
               Agenda & Meeting Notes
             </label>
             <textarea
+              id="meeting-notes"
+              name="notes"
               rows={2}
               placeholder="Outline call agenda items..."
               value={notes}
