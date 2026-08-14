@@ -30,7 +30,8 @@ export const geminiService = {
         }),
       });
 
-      if (response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('application/json')) {
         const data = await response.json();
         if (data.success && data.recommendation) {
           return data.recommendation;

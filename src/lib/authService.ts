@@ -387,10 +387,14 @@ class AuthService {
     return new Promise(async (resolve, reject) => {
       try {
         const res = await fetch(`/api/auth/oauth/url?provider=${provider}`);
-        if (!res.ok) {
+        const resText = await res.text();
+        let resJson: any = null;
+        try { resJson = JSON.parse(resText); } catch {}
+
+        if (!res.ok || !resJson || !resJson.url) {
           throw new Error(`Failed to get OAuth authorization URL for ${provider}`);
         }
-        const { url } = await res.json();
+        const { url } = resJson;
 
         const handleMessage = (event: MessageEvent) => {
           if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
@@ -427,8 +431,10 @@ class AuthService {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ provider, email: emailHint })
           });
-          const ssoData = await ssoRes.json();
-          if (ssoData.success && ssoData.token) {
+          const ssoText = await ssoRes.text();
+          let ssoData: any = null;
+          try { ssoData = JSON.parse(ssoText); } catch {}
+          if (ssoData && ssoData.success && ssoData.token) {
             this.sessionToken = ssoData.token;
             this.currentUser = ssoData.user;
             this.isAuthenticated = true;
@@ -451,8 +457,10 @@ class AuthService {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ provider, email: emailHint })
                 });
-                const ssoData = await ssoRes.json();
-                if (ssoData.success && ssoData.token) {
+                const ssoText = await ssoRes.text();
+                let ssoData: any = null;
+                try { ssoData = JSON.parse(ssoText); } catch {}
+                if (ssoData && ssoData.success && ssoData.token) {
                   this.sessionToken = ssoData.token;
                   this.currentUser = ssoData.user;
                   this.isAuthenticated = true;

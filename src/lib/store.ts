@@ -524,7 +524,8 @@ export class CRMStore {
   public async syncFromBackend() {
     try {
       const res = await fetch('/api/leads');
-      if (res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
         if (data && data.success && Array.isArray(data.leads) && data.leads.length > 0) {
           const loadedLeads: Lead[] = data.leads.map((l: any) => ({
