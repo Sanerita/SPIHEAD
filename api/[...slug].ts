@@ -9,20 +9,25 @@ export default async function handler(req: any, res: any) {
     }
     const app = await appPromise;
 
+    let targetUrl = '';
+
     if (req.query && req.query.slug) {
       const slugPath = Array.isArray(req.query.slug) ? req.query.slug.join('/') : req.query.slug;
       const queryString = req.url && req.url.includes('?') ? '?' + req.url.split('?')[1] : '';
-      req.url = '/api/' + slugPath + queryString;
+      targetUrl = '/api/' + slugPath + queryString;
+    } else if (req.headers['x-forwarded-uri'] && typeof req.headers['x-forwarded-uri'] === 'string') {
+      targetUrl = req.headers['x-forwarded-uri'];
     } else {
-      const originalUrl = req.headers['x-forwarded-uri'] || req.headers['x-matched-path'] || req.url;
-      if (typeof originalUrl === 'string' && originalUrl.length > 0 && !originalUrl.startsWith('/api/[...slug]')) {
-        req.url = originalUrl;
-      }
+      targetUrl = req.url || '';
     }
 
-    if (req.url && !req.url.startsWith('/api')) {
-      req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
+    if (!targetUrl || targetUrl === '/') {
+      targetUrl = '/api';
+    } else if (!targetUrl.startsWith('/api')) {
+      targetUrl = '/api' + (targetUrl.startsWith('/') ? targetUrl : '/' + targetUrl);
     }
+
+    req.url = targetUrl;
 
     return app(req, res);
   } catch (err: any) {
@@ -35,5 +40,3 @@ export default async function handler(req: any, res: any) {
     }
   }
 }
-
-

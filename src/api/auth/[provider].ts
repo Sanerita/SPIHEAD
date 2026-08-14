@@ -150,7 +150,7 @@ export async function secureUserSessionMapping(profile: UserProfile, req: Reques
   const cleanEmail = profile.email.toLowerCase().trim();
   let user = usersDb.get(cleanEmail);
 
-  if (!user) {
+  if (!user && db) {
     try {
       const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
       if (dbUsers.length > 0) {
@@ -198,20 +198,22 @@ export async function secureUserSessionMapping(profile: UserProfile, req: Reques
 
     usersDb.set(cleanEmail, user);
 
-    try {
-      await db.insert(users).values({
-        id: userId,
-        name: user.name,
-        email: cleanEmail,
-        role: 'Admin',
-        company: user.companyName,
-        passwordHash: user.passwordHash,
-        jobTitle: user.jobTitle,
-        department: user.department,
-        selectedPlan: user.selectedPlan,
-      });
-    } catch (dbErr) {
-      console.warn('Neon DB insert error during OAuth user creation:', dbErr);
+    if (db) {
+      try {
+        await db.insert(users).values({
+          id: userId,
+          name: user.name,
+          email: cleanEmail,
+          role: 'Admin',
+          company: user.companyName,
+          passwordHash: user.passwordHash,
+          jobTitle: user.jobTitle,
+          department: user.department,
+          selectedPlan: user.selectedPlan,
+        });
+      } catch (dbErr) {
+        console.warn('Neon DB insert error during OAuth user creation:', dbErr);
+      }
     }
   } else {
     user.lastLoginAt = new Date().toISOString();

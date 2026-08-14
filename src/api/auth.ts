@@ -286,7 +286,7 @@ router.all(['/me', '/me/'], async (req: Request, res: Response) => {
     }
 
     let user = usersDb.get(session.userEmail);
-    if (!user) {
+    if (!user && db) {
       try {
         const dbUsers = await db.select().from(users).where(eq(users.email, session.userEmail)).limit(1);
         if (dbUsers.length > 0) {
@@ -389,7 +389,7 @@ async function completeOAuthSignIn(email: string, name: string, providerName: st
   const cleanEmail = email.toLowerCase().trim();
   let user = usersDb.get(cleanEmail);
 
-  if (!user) {
+  if (!user && db) {
     try {
       const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
       if (dbUsers.length > 0) {
@@ -437,20 +437,22 @@ async function completeOAuthSignIn(email: string, name: string, providerName: st
 
     usersDb.set(cleanEmail, user);
 
-    try {
-      await db.insert(users).values({
-        id: userId,
-        name: user.name,
-        email: cleanEmail,
-        role: 'Admin',
-        company: user.companyName,
-        passwordHash: user.passwordHash,
-        jobTitle: user.jobTitle,
-        department: user.department,
-        selectedPlan: user.selectedPlan,
-      });
-    } catch (dbErr) {
-      console.warn('DB insert error during OAuth user creation:', dbErr);
+    if (db) {
+      try {
+        await db.insert(users).values({
+          id: userId,
+          name: user.name,
+          email: cleanEmail,
+          role: 'Admin',
+          company: user.companyName,
+          passwordHash: user.passwordHash,
+          jobTitle: user.jobTitle,
+          department: user.department,
+          selectedPlan: user.selectedPlan,
+        });
+      } catch (dbErr) {
+        console.warn('DB insert error during OAuth user creation:', dbErr);
+      }
     }
   } else {
     user.lastLoginAt = new Date().toISOString();
