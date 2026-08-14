@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
-import { db } from '../../db/index';
-import { users } from '../../db/schema';
-import { usersDb, activeSessions, ServerUser, createSessionToken } from '../sessionStore';
+import { db } from '../../db/index.js';
+import { users } from '../../db/schema.js';
+import { usersDb, activeSessions, ServerUser, createSessionToken } from '../sessionStore.js';
 
 const router = Router();
 
