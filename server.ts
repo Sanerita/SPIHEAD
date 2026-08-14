@@ -2,7 +2,7 @@ import "dotenv/config";
 import path from "path";
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import { createApp } from "./src/createApp";
+import { createApp } from "./src/createApp.js";
 
 async function startServer() {
   const app = await createApp();
