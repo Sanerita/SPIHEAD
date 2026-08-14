@@ -17,23 +17,39 @@ export async function createApp() {
   const app = express();
 
   app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
+  // URL normalizer middleware to handle serverless rewrites where /api prefix might be stripped
+  app.use((req, res, next) => {
+    const url = req.url || '';
+    if (!url.startsWith('/api') && (
+      url.startsWith('/auth') ||
+      url.startsWith('/login') ||
+      url.startsWith('/signup') ||
+      url.startsWith('/leads') ||
+      url.startsWith('/gemini')
+    )) {
+      req.url = '/api' + url;
+    }
+    next();
+  });
 
   // Universal CORS middleware for API routes
-  app.use("/api", (req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-    if (req.method === "OPTIONS") {
+  app.use(['/api', '/auth', '/login', '/signup', '/leads', '/gemini'], (req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (req.method === 'OPTIONS') {
       return res.sendStatus(200);
     }
     next();
   });
 
   // Initialize Neon Postgres database tables automatically in background
-  initDbTables().catch((err) => console.warn("Init DB tables error:", err));
+  initDbTables().catch((err) => console.warn('Init DB tables error:', err));
 
   // Mount API handlers from src/api (auth, leads)
-  app.use("/api", apiRouter);
+  app.use('/api', apiRouter);
 
   // Helper to initialize Gemini client lazily per request
   const getGeminiClient = () => {
@@ -354,9 +370,9 @@ Return structured JSON containing actionTitle, category, confidenceScore (number
     }
   });
 
-  // Catch-all 404 and error handlers for /api routes to prevent HTML fallback pages
-  app.use("/api/*", apiNotFoundHandler);
-  app.use("/api", apiErrorHandler);
+  // Catch-all 404 and error handlers for /api routes to prevent HTML/static 405 fallback pages
+  app.all(['/api/*', '/api', '/auth/*', '/login/*', '/signup/*', '/leads/*', '/gemini/*'], apiNotFoundHandler);
+  app.use(apiErrorHandler);
 
   return app;
 }
