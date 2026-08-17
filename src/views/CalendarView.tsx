@@ -467,7 +467,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         {/* Search Input */}
         <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+          <label htmlFor="calendar-search-input" className="sr-only">Search meetings</label>
           <input
+            id="calendar-search-input"
+            name="searchQuery"
+            aria-label="Search meetings by lead, title, or agenda"
             type="text"
             placeholder="Search meetings by lead, title, or agenda..."
             value={searchQuery}
@@ -479,7 +483,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         {/* Filter Dropdowns */}
         <div className="flex items-center gap-2 w-full sm:w-auto">
           {/* Status Filter */}
+          <label htmlFor="calendar-status-filter" className="sr-only">Filter by status</label>
           <select
+            id="calendar-status-filter"
+            name="statusFilter"
+            aria-label="Filter by meeting status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="px-3 py-2 border border-slate-200 rounded-xl bg-slate-50 font-bold text-navy-900 focus:ring-2 focus:ring-purple-500 focus:outline-none cursor-pointer"
@@ -491,7 +499,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </select>
 
           {/* Type Filter */}
+          <label htmlFor="calendar-type-filter" className="sr-only">Filter by type</label>
           <select
+            id="calendar-type-filter"
+            name="typeFilter"
+            aria-label="Filter by meeting type"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             className="px-3 py-2 border border-slate-200 rounded-xl bg-slate-50 font-bold text-navy-900 focus:ring-2 focus:ring-purple-500 focus:outline-none cursor-pointer"
@@ -1017,7 +1029,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       Type call notes or action items below. They will be logged directly to the lead timeline when you end the call.
                     </p>
 
+                    <label htmlFor="incall-notes" className="sr-only">In-Call Notes</label>
                     <textarea
+                      id="incall-notes"
+                      name="callNotesText"
+                      aria-label="Record call key takeaways and action items"
                       rows={12}
                       value={callNotesText}
                       onChange={(e) => setCallNotesText(e.target.value)}
@@ -1049,7 +1065,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                     {/* Chat Input */}
                     <form onSubmit={handleSendTeamsChatMessage} className="flex items-center gap-2 pt-2">
+                      <label htmlFor="incall-chat-msg" className="sr-only">In-Call Chat Message</label>
                       <input
+                        id="incall-chat-msg"
+                        name="newChatMessage"
+                        aria-label="Type a Teams chat message"
                         type="text"
                         placeholder="Type a message..."
                         value={newChatMessage}
@@ -1091,10 +1111,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
             <form onSubmit={handleSaveMeetingEdit} className="p-6 space-y-4 text-sm text-slate-700">
               <div>
-                <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+                <label htmlFor="edit-meeting-title" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                   Meeting Title
                 </label>
                 <input
+                  id="edit-meeting-title"
+                  name="editTitle"
                   type="text"
                   required
                   value={editTitle}
@@ -1105,10 +1127,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+                  <label htmlFor="edit-meeting-date" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                     Date
                   </label>
                   <input
+                    id="edit-meeting-date"
+                    name="editDate"
                     type="date"
                     required
                     value={editDate}
@@ -1118,10 +1142,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+                  <label htmlFor="edit-meeting-time" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                     Time
                   </label>
                   <input
+                    id="edit-meeting-time"
+                    name="editTime"
                     type="time"
                     required
                     value={editTime}
@@ -1131,10 +1157,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+                  <label htmlFor="edit-meeting-duration" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                     Duration
                   </label>
                   <select
+                    id="edit-meeting-duration"
+                    name="editDuration"
                     value={editDuration}
                     onChange={(e) => setEditDuration(Number(e.target.value))}
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
@@ -1148,10 +1176,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase text-slate-500 mb-1">
+                <label htmlFor="edit-meeting-notes" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                   Meeting Notes / Agenda
                 </label>
                 <textarea
+                  id="edit-meeting-notes"
+                  name="editNotes"
                   rows={3}
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}

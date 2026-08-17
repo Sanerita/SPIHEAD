@@ -690,12 +690,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <form onSubmit={handleSaveQuota} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                <label htmlFor="dashboard-quota-input" className="block text-xs font-bold text-slate-700 uppercase mb-1">
                   Target Revenue Goal ($ USD)
                 </label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
                   <input
+                    id="dashboard-quota-input"
+                    name="quotaInput"
                     type="number"
                     min="10000"
                     step="50000"
@@ -745,8 +747,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <form onSubmit={handleSaveActivity} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Select Lead / Account</label>
+                <label htmlFor="log-lead-id" className="block text-xs font-bold text-slate-700 uppercase mb-1">Select Lead / Account</label>
                 <select
+                  id="log-lead-id"
+                  name="logLeadId"
                   value={logLeadId}
                   onChange={(e) => setLogLeadId(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium text-sm text-navy-900"
@@ -760,8 +764,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Activity Type</label>
+                <label htmlFor="log-type" className="block text-xs font-bold text-slate-700 uppercase mb-1">Activity Type</label>
                 <select
+                  id="log-type"
+                  name="logType"
                   value={logType}
                   onChange={(e) => setLogType(e.target.value as Activity['type'])}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium text-sm text-navy-900"
@@ -774,8 +780,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Activity Summary / Note</label>
+                <label htmlFor="log-message" className="block text-xs font-bold text-slate-700 uppercase mb-1">Activity Summary / Note</label>
                 <textarea
+                  id="log-message"
+                  name="logMessage"
                   rows={3}
                   value={logMessage}
                   onChange={(e) => setLogMessage(e.target.value)}

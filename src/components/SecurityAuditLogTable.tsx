@@ -105,7 +105,11 @@ export const SecurityAuditLogTable: React.FC<SecurityAuditLogTableProps> = ({ lo
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {/* Search */}
         <div className="relative">
+          <label htmlFor="audit-search" className="sr-only">Search audit events</label>
           <input
+            id="audit-search"
+            name="searchTerm"
+            aria-label="Search action, email, or IP"
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -117,7 +121,11 @@ export const SecurityAuditLogTable: React.FC<SecurityAuditLogTableProps> = ({ lo
 
         {/* Severity Filter */}
         <div>
+          <label htmlFor="audit-severity" className="sr-only">Filter by severity</label>
           <select
+            id="audit-severity"
+            name="severityFilter"
+            aria-label="Filter by severity level"
             value={selectedSeverity}
             onChange={(e) => setSelectedSeverity(e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"
@@ -133,7 +141,11 @@ export const SecurityAuditLogTable: React.FC<SecurityAuditLogTableProps> = ({ lo
 
         {/* Category Filter */}
         <div>
+          <label htmlFor="audit-category" className="sr-only">Filter by category</label>
           <select
+            id="audit-category"
+            name="categoryFilter"
+            aria-label="Filter by event category"
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"

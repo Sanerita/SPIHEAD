@@ -386,11 +386,13 @@ End of SPIHEAD Executive Report - Sync'd with M365 Exchange & Graph API
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-1">
           {/* Industry Filter */}
           <div>
-            <label className="block font-extrabold text-slate-700 mb-1 flex items-center gap-1">
+            <label htmlFor="analytics-industry-filter" className="block font-extrabold text-slate-700 mb-1 flex items-center gap-1">
               <Building className="h-3.5 w-3.5 text-slate-400" />
               Industry Sector
             </label>
             <select
+              id="analytics-industry-filter"
+              name="selectedIndustry"
               value={selectedIndustry}
               onChange={(e) => setSelectedIndustry(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold bg-slate-50 text-navy-900 focus:ring-2 focus:ring-gold-500 focus:outline-none"
@@ -406,11 +408,13 @@ End of SPIHEAD Executive Report - Sync'd with M365 Exchange & Graph API
 
           {/* Warmth Tier Filter */}
           <div>
-            <label className="block font-extrabold text-slate-700 mb-1 flex items-center gap-1">
+            <label htmlFor="analytics-warmth-filter" className="block font-extrabold text-slate-700 mb-1 flex items-center gap-1">
               <Flame className="h-3.5 w-3.5 text-amber-500" />
               AI Warmth Score Tier
             </label>
             <select
+              id="analytics-warmth-filter"
+              name="selectedWarmthTier"
               value={selectedWarmthTier}
               onChange={(e) => setSelectedWarmthTier(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold bg-slate-50 text-navy-900 focus:ring-2 focus:ring-gold-500 focus:outline-none"
@@ -424,11 +428,13 @@ End of SPIHEAD Executive Report - Sync'd with M365 Exchange & Graph API
 
           {/* Funnel Stage Filter */}
           <div>
-            <label className="block font-extrabold text-slate-700 mb-1 flex items-center gap-1">
+            <label htmlFor="analytics-funnel-filter" className="block font-extrabold text-slate-700 mb-1 flex items-center gap-1">
               <Filter className="h-3.5 w-3.5 text-blue-500" />
               Funnel Stage
             </label>
             <select
+              id="analytics-funnel-filter"
+              name="selectedFunnelStage"
               value={selectedFunnelStage}
               onChange={(e) => setSelectedFunnelStage(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold bg-slate-50 text-navy-900 focus:ring-2 focus:ring-gold-500 focus:outline-none"
@@ -444,11 +450,13 @@ End of SPIHEAD Executive Report - Sync'd with M365 Exchange & Graph API
 
           {/* Timeframe */}
           <div>
-            <label className="block font-extrabold text-slate-700 mb-1 flex items-center gap-1">
+            <label htmlFor="analytics-timeframe-filter" className="block font-extrabold text-slate-700 mb-1 flex items-center gap-1">
               <Clock className="h-3.5 w-3.5 text-teal-500" />
               Time Horizon
             </label>
             <select
+              id="analytics-timeframe-filter"
+              name="selectedTimeframe"
               value={selectedTimeframe}
               onChange={(e) => setSelectedTimeframe(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold bg-slate-50 text-navy-900 focus:ring-2 focus:ring-gold-500 focus:outline-none"
@@ -658,11 +666,13 @@ End of SPIHEAD Executive Report - Sync'd with M365 Exchange & Graph API
             <div className="space-y-4 text-xs">
               {/* Control 1: Win Rate Shift */}
               <div className="space-y-1.5 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex justify-between font-bold text-navy-900">
+                <label htmlFor="sim-winprob-boost" className="flex justify-between font-bold text-navy-900 cursor-pointer">
                   <span>Win Probability Delta Boost</span>
                   <span className="font-mono text-gold-600">+{winProbBoost}%</span>
-                </div>
+                </label>
                 <input
+                  id="sim-winprob-boost"
+                  name="winProbBoost"
                   type="range"
                   min="0"
                   max="30"
@@ -678,11 +688,13 @@ End of SPIHEAD Executive Report - Sync'd with M365 Exchange & Graph API
 
               {/* Control 2: Deal Size Multiplier */}
               <div className="space-y-1.5 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                <div className="flex justify-between font-bold text-navy-900">
+                <label htmlFor="sim-dealsize-multiplier" className="flex justify-between font-bold text-navy-900 cursor-pointer">
                   <span>Average Deal Upside Multiplier</span>
                   <span className="font-mono text-indigo-600">{dealSizeMultiplier}x</span>
-                </div>
+                </label>
                 <input
+                  id="sim-dealsize-multiplier"
+                  name="dealSizeMultiplier"
                   type="range"
                   min="0.8"
                   max="1.5"
@@ -952,6 +964,9 @@ End of SPIHEAD Executive Report - Sync'd with M365 Exchange & Graph API
             <div className="relative">
               <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2.5" />
               <input
+                id="analytics-search-deals"
+                name="searchQuery"
+                aria-label="Search deals or company"
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -962,6 +977,9 @@ End of SPIHEAD Executive Report - Sync'd with M365 Exchange & Graph API
 
             {/* Sort Dropdown */}
             <select
+              id="analytics-sort-field"
+              name="sortField"
+              aria-label="Sort deals"
               value={sortField}
               onChange={(e) => setSortField(e.target.value as any)}
               className="px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-bold bg-slate-50 text-navy-900 focus:ring-2 focus:ring-gold-500 focus:outline-none"

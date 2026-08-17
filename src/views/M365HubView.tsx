@@ -766,7 +766,11 @@ export const M365HubView: React.FC<M365HubViewProps> = ({
                 <MessageSquare className="h-4 w-4 text-purple-600" />
                 Send Teams Channel Notification Ping
               </h3>
+              <label htmlFor="teams-webhook-msg" className="sr-only">Teams Channel Message</label>
               <input
+                id="teams-webhook-msg"
+                name="webhookMessage"
+                aria-label="Teams Channel Notification Message"
                 type="text"
                 value={webhookMessage}
                 onChange={(e) => setWebhookMessage(e.target.value)}
@@ -975,20 +979,25 @@ export const M365HubView: React.FC<M365HubViewProps> = ({
                 'Industry',
                 'M365 Synced',
                 'Last Contact',
-              ].map((f) => (
-                <label key={f} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={excelFields.includes(f)}
-                    onChange={(e) => {
-                      if (e.target.checked) setExcelFields([...excelFields, f]);
-                      else setExcelFields(excelFields.filter((x) => x !== f));
-                    }}
-                    className="rounded text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <span className="font-bold text-navy-900">{f}</span>
-                </label>
-              ))}
+              ].map((f) => {
+                const fieldSlug = f.toLowerCase().replace(/[^a-z0-9]/g, '-');
+                return (
+                  <label key={f} htmlFor={`excel-field-${fieldSlug}`} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer">
+                    <input
+                      id={`excel-field-${fieldSlug}`}
+                      name={`excelField-${fieldSlug}`}
+                      type="checkbox"
+                      checked={excelFields.includes(f)}
+                      onChange={(e) => {
+                        if (e.target.checked) setExcelFields([...excelFields, f]);
+                        else setExcelFields(excelFields.filter((x) => x !== f));
+                      }}
+                      className="rounded text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span className="font-bold text-navy-900">{f}</span>
+                  </label>
+                );
+              })}
             </div>
 
             <button

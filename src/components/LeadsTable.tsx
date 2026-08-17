@@ -162,7 +162,11 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
           {/* Search Input */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <label htmlFor="leads-search-input" className="sr-only">Search leads</label>
             <input
+              id="leads-search-input"
+              name="searchTerm"
+              aria-label="Search leads by name, company, email, or industry"
               type="text"
               placeholder="Search leads by name, company, email, or industry..."
               value={searchTerm}
@@ -174,7 +178,11 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
           {/* Filter Dropdowns */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
             {/* Status Filter */}
+            <label htmlFor="leads-status-filter" className="sr-only">Filter by stage status</label>
             <select
+              id="leads-status-filter"
+              name="statusFilter"
+              aria-label="Filter by stage status"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 font-bold text-navy-900 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
@@ -189,22 +197,32 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
 
             {/* Industry Filter */}
             {industries.length > 0 && (
-              <select
-                value={industryFilter}
-                onChange={(e) => setIndustryFilter(e.target.value)}
-                className="px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 font-bold text-navy-900 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
-              >
-                <option value="all">All Industries</option>
-                {industries.map((ind) => (
-                  <option key={ind} value={ind}>
-                    {ind}
-                  </option>
-                ))}
-              </select>
+              <>
+                <label htmlFor="leads-industry-filter" className="sr-only">Filter by industry</label>
+                <select
+                  id="leads-industry-filter"
+                  name="industryFilter"
+                  aria-label="Filter by industry"
+                  value={industryFilter}
+                  onChange={(e) => setIndustryFilter(e.target.value)}
+                  className="px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 font-bold text-navy-900 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
+                >
+                  <option value="all">All Industries</option>
+                  {industries.map((ind) => (
+                    <option key={ind} value={ind}>
+                      {ind}
+                    </option>
+                  ))}
+                </select>
+              </>
             )}
 
             {/* AI Energy Score Filter */}
+            <label htmlFor="leads-energy-filter" className="sr-only">Filter by energy score</label>
             <select
+              id="leads-energy-filter"
+              name="energyFilter"
+              aria-label="Filter by energy score"
               value={energyFilter}
               onChange={(e) => setEnergyFilter(e.target.value)}
               className="px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 font-bold text-navy-900 focus:outline-none focus:ring-2 focus:ring-purple-500 cursor-pointer"
@@ -264,7 +282,11 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
             <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-semibold">
               <tr>
                 <th className="py-3.5 px-4 w-10 text-center">
+                  <label htmlFor="select-all-leads-checkbox" className="sr-only">Select all leads</label>
                   <input
+                    id="select-all-leads-checkbox"
+                    name="selectAllLeads"
+                    aria-label="Select all leads"
                     type="checkbox"
                     checked={
                       filteredLeads.length > 0 && selectedLeadIds.length === filteredLeads.length
@@ -318,7 +340,11 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({
                     >
                       {/* Selection Checkbox */}
                       <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <label htmlFor={`select-lead-${lead.id}`} className="sr-only">Select lead {lead.name}</label>
                         <input
+                          id={`select-lead-${lead.id}`}
+                          name={`selectLead-${lead.id}`}
+                          aria-label={`Select lead ${lead.name}`}
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleToggleSelectRow(lead.id)}

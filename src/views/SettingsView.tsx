@@ -818,8 +818,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Company / Organization Name</label>
+                <label htmlFor="settings-company-name" className="block font-bold text-slate-700 mb-1">Company / Organization Name</label>
                 <input
+                  id="settings-company-name"
+                  name="companyName"
                   type="text"
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
@@ -828,8 +830,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Primary Reporting Currency</label>
+                <label htmlFor="settings-currency" className="block font-bold text-slate-700 mb-1">Primary Reporting Currency</label>
                 <select
+                  id="settings-currency"
+                  name="currency"
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"
@@ -843,8 +847,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">System Timezone</label>
+                <label htmlFor="settings-timezone" className="block font-bold text-slate-700 mb-1">System Timezone</label>
                 <select
+                  id="settings-timezone"
+                  name="timezone"
                   value={timezone}
                   onChange={(e) => setTimezone(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"
@@ -858,8 +864,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Fiscal Year Start Month</label>
+                <label htmlFor="settings-fiscal-year-start" className="block font-bold text-slate-700 mb-1">Fiscal Year Start Month</label>
                 <select
+                  id="settings-fiscal-year-start"
+                  name="fiscalYearStart"
                   value={fiscalYearStart}
                   onChange={(e) => setFiscalYearStart(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"
@@ -886,10 +894,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
-                <span className="font-extrabold text-rose-800 text-xs flex items-center gap-1.5">
+                <label htmlFor="settings-hot-threshold" className="font-extrabold text-rose-800 text-xs flex items-center gap-1.5 cursor-pointer">
                   <Zap className="h-4 w-4 fill-rose-500 text-rose-500" /> Hot Lead Threshold (Score &ge;)
-                </span>
+                </label>
                 <input
+                  id="settings-hot-threshold"
+                  name="hotThreshold"
                   type="number"
                   min="50"
                   max="95"
@@ -901,10 +911,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
-                <span className="font-extrabold text-amber-800 text-xs flex items-center gap-1.5">
+                <label htmlFor="settings-warm-threshold" className="font-extrabold text-amber-800 text-xs flex items-center gap-1.5 cursor-pointer">
                   <Zap className="h-4 w-4 fill-amber-500 text-amber-500" /> Warm Lead Threshold (Score &ge;)
-                </span>
+                </label>
                 <input
+                  id="settings-warm-threshold"
+                  name="warmThreshold"
                   type="number"
                   min="20"
                   max="70"
@@ -1039,9 +1051,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
               {/* Primary Navy */}
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                <span className="text-[10px] uppercase tracking-wider block font-bold text-slate-500">Primary Dark Base</span>
+                <label htmlFor="settings-primary-navy-text" className="text-[10px] uppercase tracking-wider block font-bold text-slate-500 cursor-pointer">Primary Dark Base</label>
                 <div className="flex items-center gap-2">
+                  <label htmlFor="settings-primary-navy-picker" className="sr-only">Primary Dark Base Color Picker</label>
                   <input
+                    id="settings-primary-navy-picker"
+                    name="primaryNavyPicker"
+                    aria-label="Primary Dark Base Color Picker"
                     type="color"
                     value={primaryNavy}
                     onChange={(e) =>
@@ -1055,6 +1071,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     className="w-9 h-9 rounded-lg border border-slate-300 cursor-pointer shrink-0 p-0.5 bg-white"
                   />
                   <input
+                    id="settings-primary-navy-text"
+                    name="primaryNavy"
+                    aria-label="Primary Dark Base Color Hex Code"
                     type="text"
                     value={primaryNavy}
                     onChange={(e) =>
@@ -1072,9 +1091,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               {/* Accent Navy */}
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                <span className="text-[10px] uppercase tracking-wider block font-bold text-slate-500">Secondary Dark Surface</span>
+                <label htmlFor="settings-accent-navy-text" className="text-[10px] uppercase tracking-wider block font-bold text-slate-500 cursor-pointer">Secondary Dark Surface</label>
                 <div className="flex items-center gap-2">
+                  <label htmlFor="settings-accent-navy-picker" className="sr-only">Secondary Dark Surface Color Picker</label>
                   <input
+                    id="settings-accent-navy-picker"
+                    name="accentNavyPicker"
+                    aria-label="Secondary Dark Surface Color Picker"
                     type="color"
                     value={accentNavy}
                     onChange={(e) =>
@@ -1088,6 +1111,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     className="w-9 h-9 rounded-lg border border-slate-300 cursor-pointer shrink-0 p-0.5 bg-white"
                   />
                   <input
+                    id="settings-accent-navy-text"
+                    name="accentNavy"
+                    aria-label="Secondary Dark Surface Color Hex Code"
                     type="text"
                     value={accentNavy}
                     onChange={(e) =>
@@ -1105,9 +1131,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               {/* Luxury Gold */}
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                <span className="text-[10px] uppercase tracking-wider block font-bold text-slate-500">Brand Primary Accent</span>
+                <label htmlFor="settings-luxury-gold-text" className="text-[10px] uppercase tracking-wider block font-bold text-slate-500 cursor-pointer">Brand Primary Accent</label>
                 <div className="flex items-center gap-2">
+                  <label htmlFor="settings-luxury-gold-picker" className="sr-only">Brand Primary Accent Color Picker</label>
                   <input
+                    id="settings-luxury-gold-picker"
+                    name="luxuryGoldPicker"
+                    aria-label="Brand Primary Accent Color Picker"
                     type="color"
                     value={luxuryGold}
                     onChange={(e) =>
@@ -1121,6 +1151,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     className="w-9 h-9 rounded-lg border border-slate-300 cursor-pointer shrink-0 p-0.5 bg-white"
                   />
                   <input
+                    id="settings-luxury-gold-text"
+                    name="luxuryGold"
+                    aria-label="Brand Primary Accent Color Hex Code"
                     type="text"
                     value={luxuryGold}
                     onChange={(e) =>
@@ -1138,9 +1171,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               {/* Gold Highlight */}
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                <span className="text-[10px] uppercase tracking-wider block font-bold text-slate-500">Secondary Highlight</span>
+                <label htmlFor="settings-highlight-gold-text" className="text-[10px] uppercase tracking-wider block font-bold text-slate-500 cursor-pointer">Secondary Highlight</label>
                 <div className="flex items-center gap-2">
+                  <label htmlFor="settings-highlight-gold-picker" className="sr-only">Secondary Highlight Color Picker</label>
                   <input
+                    id="settings-highlight-gold-picker"
+                    name="highlightGoldPicker"
+                    aria-label="Secondary Highlight Color Picker"
                     type="color"
                     value={highlightGold}
                     onChange={(e) =>
@@ -1154,6 +1191,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     className="w-9 h-9 rounded-lg border border-slate-300 cursor-pointer shrink-0 p-0.5 bg-white"
                   />
                   <input
+                    id="settings-highlight-gold-text"
+                    name="highlightGold"
+                    aria-label="Secondary Highlight Color Hex Code"
                     type="text"
                     value={highlightGold}
                     onChange={(e) =>
@@ -1339,8 +1379,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="space-y-4 text-xs text-slate-700">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Directory / Tenant ID (MICROSOFT_TENANT_ID)</label>
+                  <label htmlFor="settings-tenant-id" className="block font-bold text-slate-700 mb-1">Directory / Tenant ID (MICROSOFT_TENANT_ID)</label>
                   <input
+                    id="settings-tenant-id"
+                    name="tenantId"
                     type="text"
                     value={tenantId}
                     onChange={(e) => setTenantId(e.target.value)}
@@ -1351,8 +1393,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Application / Client ID (MICROSOFT_CLIENT_ID)</label>
+                  <label htmlFor="settings-client-id" className="block font-bold text-slate-700 mb-1">Application / Client ID (MICROSOFT_CLIENT_ID)</label>
                   <input
+                    id="settings-client-id"
+                    name="clientId"
                     type="text"
                     value={clientId}
                     onChange={(e) => setClientId(e.target.value)}
@@ -1365,9 +1409,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Client Secret / API Key (MICROSOFT_CLIENT_SECRET)</label>
+                  <label htmlFor="settings-client-secret" className="block font-bold text-slate-700 mb-1">Client Secret / API Key (MICROSOFT_CLIENT_SECRET)</label>
                   <div className="relative">
                     <input
+                      id="settings-client-secret"
+                      name="clientSecret"
                       type={showSecret ? 'text' : 'password'}
                       value={clientSecret}
                       onChange={(e) => setClientSecret(e.target.value)}
@@ -1386,9 +1432,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">OAuth2 Redirect Callback URI</label>
+                  <label htmlFor="settings-redirect-uri" className="block font-bold text-slate-700 mb-1">OAuth2 Redirect Callback URI</label>
                   <div className="flex gap-2">
                     <input
+                      id="settings-redirect-uri"
+                      name="redirectUri"
                       type="text"
                       value={redirectUri}
                       onChange={(e) => setRedirectUri(e.target.value)}
@@ -1413,8 +1461,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               {/* Sync Configuration Options */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Graph API Auto-Sync Strategy</label>
+                  <label htmlFor="settings-sync-frequency" className="block font-bold text-slate-700 mb-1">Graph API Auto-Sync Strategy</label>
                   <select
+                    id="settings-sync-frequency"
+                    name="syncFrequency"
                     value={syncFrequency}
                     onChange={(e) => setSyncFrequency(e.target.value)}
                     className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"
@@ -1427,8 +1477,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <div className="space-y-2 pt-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label htmlFor="settings-sync-contacts" className="flex items-center gap-2 cursor-pointer">
                     <input
+                      id="settings-sync-contacts"
+                      name="syncContacts"
                       type="checkbox"
                       checked={syncContacts}
                       onChange={(e) => setSyncContacts(e.target.checked)}
@@ -1437,8 +1489,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <span className="font-bold text-slate-800">Two-Way Outlook Contacts Sync</span>
                   </label>
 
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label htmlFor="settings-sync-calendar" className="flex items-center gap-2 cursor-pointer">
                     <input
+                      id="settings-sync-calendar"
+                      name="syncCalendar"
                       type="checkbox"
                       checked={syncCalendar}
                       onChange={(e) => setSyncCalendar(e.target.checked)}
@@ -1447,8 +1501,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <span className="font-bold text-slate-800">Teams & Outlook Calendar Meeting Sync</span>
                   </label>
 
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label htmlFor="settings-auto-log-emails" className="flex items-center gap-2 cursor-pointer">
                     <input
+                      id="settings-auto-log-emails"
+                      name="autoLogEmails"
                       type="checkbox"
                       checked={autoLogEmails}
                       onChange={(e) => setAutoLogEmails(e.target.checked)}
@@ -1521,8 +1577,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Selected AI Engine Alias</label>
+                <label htmlFor="settings-ai-model" className="block font-bold text-slate-700 mb-1">Selected AI Engine Alias</label>
                 <select
+                  id="settings-ai-model"
+                  name="aiModel"
                   value={aiModel}
                   onChange={(e) => setAiModel(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"
@@ -1533,8 +1591,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div className="space-y-2 pt-2">
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label htmlFor="settings-auto-score-email" className="flex items-center gap-2 cursor-pointer">
                   <input
+                    id="settings-auto-score-email"
+                    name="autoScoreOnEmail"
                     type="checkbox"
                     checked={autoScoreOnEmail}
                     onChange={(e) => setAutoScoreOnEmail(e.target.checked)}
@@ -1543,8 +1603,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <span className="font-bold text-slate-800">Auto-Rescore on Outlook Email Reply</span>
                 </label>
 
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label htmlFor="settings-auto-score-meeting" className="flex items-center gap-2 cursor-pointer">
                   <input
+                    id="settings-auto-score-meeting"
+                    name="autoScoreOnMeeting"
                     type="checkbox"
                     checked={autoScoreOnMeeting}
                     onChange={(e) => setAutoScoreOnMeeting(e.target.checked)}
@@ -1568,10 +1630,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="space-y-4 text-xs">
               <div>
                 <div className="flex justify-between font-bold text-slate-700 mb-1">
-                  <span>Engagement Frequency & Replies Weight</span>
+                  <label htmlFor="settings-engagement-weight" className="cursor-pointer">Engagement Frequency & Replies Weight</label>
                   <span className="font-mono text-gold-600">{engagementWeight}%</span>
                 </div>
                 <input
+                  id="settings-engagement-weight"
+                  name="engagementWeight"
                   type="range"
                   min="10"
                   max="70"
@@ -1583,10 +1647,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <div>
                 <div className="flex justify-between font-bold text-slate-700 mb-1">
-                  <span>Deal Size & Budget Weight</span>
+                  <label htmlFor="settings-budget-weight" className="cursor-pointer">Deal Size & Budget Weight</label>
                   <span className="font-mono text-gold-600">{budgetWeight}%</span>
                 </div>
                 <input
+                  id="settings-budget-weight"
+                  name="budgetWeight"
                   type="range"
                   min="10"
                   max="70"
@@ -1598,10 +1664,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <div>
                 <div className="flex justify-between font-bold text-slate-700 mb-1">
-                  <span>Recency & Deal Urgency Decay Weight</span>
+                  <label htmlFor="settings-recency-weight" className="cursor-pointer">Recency & Deal Urgency Decay Weight</label>
                   <span className="font-mono text-gold-600">{recencyWeight}%</span>
                 </div>
                 <input
+                  id="settings-recency-weight"
+                  name="recencyWeight"
                   type="range"
                   min="10"
                   max="70"
@@ -1675,10 +1743,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {/* Rule Toggles Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             {/* Rule 1: Hot Lead Alerts */}
-            <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+            <label htmlFor="settings-notify-hot-lead" className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
               notifyHotLead ? 'bg-gold-50/40 border-gold-300 shadow-2xs' : 'bg-slate-50 border-slate-200 opacity-70'
             }`}>
               <input
+                id="settings-notify-hot-lead"
+                name="notifyHotLead"
                 type="checkbox"
                 checked={notifyHotLead}
                 onChange={(e) => setNotifyHotLead(e.target.checked)}
@@ -1696,10 +1766,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
 
             {/* Rule 2: Daily Digest */}
-            <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+            <label htmlFor="settings-notify-daily-digest" className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
               notifyDailyDigest ? 'bg-gold-50/40 border-gold-300 shadow-2xs' : 'bg-slate-50 border-slate-200 opacity-70'
             }`}>
               <input
+                id="settings-notify-daily-digest"
+                name="notifyDailyDigest"
                 type="checkbox"
                 checked={notifyDailyDigest}
                 onChange={(e) => setNotifyDailyDigest(e.target.checked)}
@@ -1717,10 +1789,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
 
             {/* Rule 3: Teams Meeting Reminders */}
-            <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+            <label htmlFor="settings-notify-teams-meeting" className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
               notifyTeamsMeeting ? 'bg-gold-50/40 border-gold-300 shadow-2xs' : 'bg-slate-50 border-slate-200 opacity-70'
             }`}>
               <input
+                id="settings-notify-teams-meeting"
+                name="notifyTeamsMeeting"
                 type="checkbox"
                 checked={notifyTeamsMeeting}
                 onChange={(e) => setNotifyTeamsMeeting(e.target.checked)}
@@ -1738,10 +1812,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
 
             {/* Rule 4: AI Follow-Up Suggestions */}
-            <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+            <label htmlFor="settings-notify-followup-prompt" className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
               notifyFollowupPrompt ? 'bg-gold-50/40 border-gold-300 shadow-2xs' : 'bg-slate-50 border-slate-200 opacity-70'
             }`}>
               <input
+                id="settings-notify-followup-prompt"
+                name="notifyFollowupPrompt"
                 type="checkbox"
                 checked={notifyFollowupPrompt}
                 onChange={(e) => setNotifyFollowupPrompt(e.target.checked)}
@@ -1759,10 +1835,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
 
             {/* Rule 5: Auto Lead Assignment */}
-            <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+            <label htmlFor="settings-auto-assign-leads" className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
               autoAssignLeads ? 'bg-gold-50/40 border-gold-300 shadow-2xs' : 'bg-slate-50 border-slate-200 opacity-70'
             }`}>
               <input
+                id="settings-auto-assign-leads"
+                name="autoAssignLeads"
                 type="checkbox"
                 checked={autoAssignLeads}
                 onChange={(e) => setAutoAssignLeads(e.target.checked)}
@@ -1780,10 +1858,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
 
             {/* Rule 6: Stale Lead Inactivity Detection */}
-            <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+            <label htmlFor="settings-auto-stale-lead-alert" className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
               autoStaleLeadAlert ? 'bg-gold-50/40 border-gold-300 shadow-2xs' : 'bg-slate-50 border-slate-200 opacity-70'
             }`}>
               <input
+                id="settings-auto-stale-lead-alert"
+                name="autoStaleLeadAlert"
                 type="checkbox"
                 checked={autoStaleLeadAlert}
                 onChange={(e) => setAutoStaleLeadAlert(e.target.checked)}
@@ -1809,10 +1889,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Alert Notification Recipient Email</label>
+                <label htmlFor="settings-alert-recipient" className="block font-bold text-slate-700 mb-1">Alert Notification Recipient Email</label>
                 <div className="relative">
                   <Mail className="h-4 w-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
+                    id="settings-alert-recipient"
+                    name="alertEmailRecipient"
                     type="email"
                     value={alertEmailRecipient}
                     onChange={(e) => setAlertEmailRecipient(e.target.value)}
@@ -1822,8 +1904,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Stale Lead Inactivity Threshold</label>
+                <label htmlFor="settings-stale-lead-days" className="block font-bold text-slate-700 mb-1">Stale Lead Inactivity Threshold</label>
                 <select
+                  id="settings-stale-lead-days"
+                  name="staleLeadDays"
                   value={staleLeadDays}
                   onChange={(e) => setStaleLeadDays(Number(e.target.value))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white text-navy-900"
@@ -1930,9 +2014,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             {/* Security Switches */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <label className="flex items-center justify-between cursor-pointer">
+                <label htmlFor="settings-mfa-required" className="flex items-center justify-between cursor-pointer">
                   <span className="font-extrabold text-navy-900">Enforce Multi-Factor Authentication (MFA)</span>
                   <input
+                    id="settings-mfa-required"
+                    name="mfaRequired"
                     type="checkbox"
                     checked={secSettings.mfaRequired}
                     onChange={(e) => {
@@ -1946,9 +2032,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <label className="flex items-center justify-between cursor-pointer">
+                <label htmlFor="settings-data-masking" className="flex items-center justify-between cursor-pointer">
                   <span className="font-extrabold text-navy-900">Sensitive Data Masking (PII Protection)</span>
                   <input
+                    id="settings-data-masking"
+                    name="dataMaskingEnabled"
                     type="checkbox"
                     checked={secSettings.dataMaskingEnabled}
                     onChange={(e) => {
@@ -1962,9 +2050,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <label className="flex items-center justify-between cursor-pointer">
+                <label htmlFor="settings-auto-lock" className="flex items-center justify-between cursor-pointer">
                   <span className="font-extrabold text-navy-900">Auto-Lock Inactive Sessions</span>
                   <input
+                    id="settings-auto-lock"
+                    name="autoLockOnInactivity"
                     type="checkbox"
                     checked={secSettings.autoLockOnInactivity}
                     onChange={(e) => {
@@ -1978,9 +2068,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <label className="flex items-center justify-between cursor-pointer">
+                <label htmlFor="settings-audit-logging" className="flex items-center justify-between cursor-pointer">
                   <span className="font-extrabold text-navy-900">Real-Time Security Audit Logging</span>
                   <input
+                    id="settings-audit-logging"
+                    name="auditLoggingEnabled"
                     type="checkbox"
                     checked={secSettings.auditLoggingEnabled}
                     onChange={(e) => {
@@ -1996,8 +2088,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-100">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Session Inactivity Timeout Limit</label>
+                <label htmlFor="settings-session-timeout" className="block font-bold text-slate-700 mb-1">Session Inactivity Timeout Limit</label>
                 <select
+                  id="settings-session-timeout"
+                  name="sessionTimeoutMinutes"
                   value={secSettings.sessionTimeoutMinutes}
                   onChange={(e) => {
                     const val = Number(e.target.value);
@@ -2014,8 +2108,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">GDPR & Data Retention Auto-Archive</label>
+                <label htmlFor="settings-gdpr-retention" className="block font-bold text-slate-700 mb-1">GDPR & Data Retention Auto-Archive</label>
                 <select
+                  id="settings-gdpr-retention"
+                  name="gdprRetentionDays"
                   value={gdprRetentionDays}
                   onChange={(e) => setGdprRetentionDays(Number(e.target.value))}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl font-medium focus:ring-2 focus:ring-gold-500 focus:outline-none bg-white"
@@ -2114,10 +2210,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <Download className="h-4 w-4" /> Export Complete Backup (.json)
               </button>
 
-              <label className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors border border-slate-200">
+              <label htmlFor="settings-import-backup-file" className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors border border-slate-200">
                 <Upload className="h-4 w-4 text-slate-500" />
                 Import Backup File
                 <input
+                  id="settings-import-backup-file"
+                  name="importBackupFile"
                   type="file"
                   accept=".json"
                   onChange={handleImportBackup}

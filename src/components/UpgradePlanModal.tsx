@@ -192,8 +192,12 @@ export const UpgradePlanModal: React.FC<UpgradePlanModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
+              <label htmlFor="upgrade-promo-code" className="sr-only">Promo Discount Code</label>
               <input
+                id="upgrade-promo-code"
+                name="promoCode"
                 type="text"
+                aria-label="Promo Discount Code"
                 placeholder="Try LAUNCH50 or FREELANCE20"
                 value={promoCode}
                 onChange={(e) => setPromoCode(e.target.value)}
