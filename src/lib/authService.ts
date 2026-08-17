@@ -448,7 +448,13 @@ class AuthService {
         }
 
         const popupTimer = setInterval(async () => {
-          if (authWindow.closed) {
+          let isClosed = false;
+          try {
+            isClosed = authWindow.closed;
+          } catch (e) {
+            isClosed = false;
+          }
+          if (isClosed) {
             clearInterval(popupTimer);
             if (!this.isAuthenticated) {
               try {
