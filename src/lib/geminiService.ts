@@ -1,10 +1,11 @@
 import { Lead, Activity, EmailMessage, Meeting, NextBestActionRecommendation } from '../types/crm';
 import { companyService } from './companyService';
+import { apiClient } from './apiClient';
 
 export const geminiService = {
   /**
    * Calls /api/gemini/next-best-action to get real-time AI recommendation with confidence score.
-   * Falls back to high-accuracy local heuristics if server/offline or API key unavailable.
+   * Gracefully handles server errors (400, 401, 500) via global apiClient and falls back to high-accuracy local heuristics.
    */
   async fetchNextBestAction(
     lead: Lead,
@@ -18,24 +19,18 @@ export const geminiService = {
       const leadEmails = emails.filter((e) => e.leadId === lead.id || e.leadEmail === lead.email);
       const leadMeetings = meetings.filter((m) => m.leadId === lead.id || m.leadEmail === lead.email);
 
-      const response = await fetch('/api/gemini/next-best-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lead,
-          activities: leadActivities,
-          emails: leadEmails,
-          meetings: leadMeetings,
-          companyProfile: profile
-        }),
+      const data = await apiClient.post('/api/gemini/next-best-action', {
+        lead,
+        activities: leadActivities,
+        emails: leadEmails,
+        meetings: leadMeetings,
+        companyProfile: profile
+      }, {
+        customErrorToast: 'AI Service Notice: Endpoint error occurred. Reverting to local AI heuristic engine.'
       });
 
-      const contentType = response.headers.get('content-type') || '';
-      if (response.ok && contentType.includes('application/json')) {
-        const data = await response.json();
-        if (data.success && data.recommendation) {
-          return data.recommendation;
-        }
+      if (data && data.success && data.recommendation) {
+        return data.recommendation;
       }
     } catch (err) {
       console.warn('Gemini Next Best Action endpoint error, using intelligent fallback:', err);

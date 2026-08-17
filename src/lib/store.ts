@@ -2,6 +2,7 @@ import { Lead, Meeting, Activity, EmailMessage, M365Account, LeadStatus } from '
 import { calculateLeadEnergyScore } from './aiScoringEngine';
 import { m365Service } from './m365Service';
 import { companyService } from './companyService';
+import { apiClient } from './apiClient';
 
 const INITIAL_LEADS: Lead[] = [
   {
@@ -523,35 +524,31 @@ export class CRMStore {
 
   public async syncFromBackend() {
     try {
-      const res = await fetch('/api/leads');
-      const contentType = res.headers.get('content-type') || '';
-      if (res.ok && contentType.includes('application/json')) {
-        const data = await res.json();
-        if (data && data.success && Array.isArray(data.leads) && data.leads.length > 0) {
-          const loadedLeads: Lead[] = data.leads.map((l: any) => ({
-            id: l.id,
-            name: l.name,
-            email: l.email || '',
-            phone: l.phone || '',
-            company: l.company || '',
-            budget: l.budget || 0,
-            status: (l.status as LeadStatus) || 'New',
-            score: l.score || 50,
-            urgency: !!l.urgency,
-            engagement: l.engagement || 1,
-            replyCount: l.replyCount || 0,
-            notes: l.notes || '',
-            industry: l.industry || 'Technology',
-            tags: typeof l.tags === 'string' ? JSON.parse(l.tags || '[]') : (Array.isArray(l.tags) ? l.tags : []),
-            createdAt: l.createdAt || new Date().toISOString(),
-            updatedAt: l.updatedAt || new Date().toISOString(),
-            lastContact: l.updatedAt || null,
-            m365Synced: true,
-          }));
-          this.leads = loadedLeads;
-          this.saveLeads();
-          this.notify();
-        }
+      const data = await apiClient.get('/api/leads', { silent: true });
+      if (data && data.success && Array.isArray(data.leads) && data.leads.length > 0) {
+        const loadedLeads: Lead[] = data.leads.map((l: any) => ({
+          id: l.id,
+          name: l.name,
+          email: l.email || '',
+          phone: l.phone || '',
+          company: l.company || '',
+          budget: l.budget || 0,
+          status: (l.status as LeadStatus) || 'New',
+          score: l.score || 50,
+          urgency: !!l.urgency,
+          engagement: l.engagement || 1,
+          replyCount: l.replyCount || 0,
+          notes: l.notes || '',
+          industry: l.industry || 'Technology',
+          tags: typeof l.tags === 'string' ? JSON.parse(l.tags || '[]') : (Array.isArray(l.tags) ? l.tags : []),
+          createdAt: l.createdAt || new Date().toISOString(),
+          updatedAt: l.updatedAt || new Date().toISOString(),
+          lastContact: l.updatedAt || null,
+          m365Synced: true,
+        }));
+        this.leads = loadedLeads;
+        this.saveLeads();
+        this.notify();
       }
     } catch (err) {
       console.warn("Could not sync leads from backend:", err);
@@ -662,10 +659,8 @@ export class CRMStore {
     this.saveLeads();
 
     // Persist to Neon Postgres backend
-    fetch('/api/leads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newLead)
+    apiClient.post('/api/leads', newLead, {
+      customErrorToast: 'Failed to save lead to backend server'
     }).catch(err => console.warn('Lead DB persist error:', err));
 
     this.addActivity({
@@ -696,10 +691,8 @@ export class CRMStore {
     this.saveLeads();
     this.notify();
 
-    fetch(`/api/leads/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates)
+    apiClient.put(`/api/leads/${id}`, updates, {
+      customErrorToast: `Failed to update lead (${id}) on backend server`
     }).catch(err => console.warn('Lead DB update error:', err));
 
     return this.leads[index];
@@ -729,8 +722,8 @@ export class CRMStore {
     this.leads = this.leads.filter((l) => l.id !== id);
     this.saveLeads();
 
-    fetch(`/api/leads/${id}`, {
-      method: 'DELETE'
+    apiClient.delete(`/api/leads/${id}`, {
+      customErrorToast: `Failed to delete lead from backend server`
     }).catch(err => console.warn('Lead DB delete error:', err));
 
     if (lead) {

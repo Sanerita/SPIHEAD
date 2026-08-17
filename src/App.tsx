@@ -22,10 +22,11 @@ import { SendEmailModal } from './components/SendEmailModal';
 import { LoginModal } from './components/LoginModal';
 import { LockScreenModal } from './components/LockScreenModal';
 
-import { CheckCircle2, AlertCircle, X, Sparkles, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, AlertCircle, AlertTriangle, AlertOctagon, Info, X, Sparkles, ShieldCheck } from 'lucide-react';
 
 import { themeService } from './lib/theme';
 import { authService } from './lib/authService';
+import { toastService, ToastMessage, ToastType } from './lib/toastService';
 
 export function App() {
   const [currentView, setCurrentView] = useState<string>('landing');
@@ -52,20 +53,23 @@ export function App() {
   };
 
   // Toast Notification State
-  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
+  const [toastMessage, setToastMessage] = useState<ToastMessage | null>(null);
 
-  const showToast = (text: string, type: 'success' | 'info' = 'success') => {
-    setToastMessage({ text, type });
-    setTimeout(() => setToastMessage(null), 4000);
+  const showToast = (text: string, type: ToastType = 'success') => {
+    toastService.showToast(text, type);
   };
 
   // Auth & Security States
   const [isAuthenticated, setIsAuthenticated] = useState(() => authService.getIsAuthenticated());
   const [isLocked, setIsLocked] = useState(() => authService.getIsLocked());
 
-  // Subscribe to store & auth updates
+  // Subscribe to store & auth & toast updates
   useEffect(() => {
     themeService.applyTheme(themeService.getTheme());
+
+    const unsubscribeToast = toastService.subscribe((toast) => {
+      setToastMessage(toast);
+    });
 
     const unsubscribeCrm = crmStore.subscribe(() => {
       setLeads(crmStore.getLeads());
@@ -81,6 +85,7 @@ export function App() {
     });
 
     return () => {
+      unsubscribeToast();
       unsubscribeCrm();
       unsubscribeAuth();
     };
@@ -448,12 +453,31 @@ export function App() {
 
       {/* Toast Notification Alert Banner */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-navy-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-gold-400/40 animate-bounce">
-          <CheckCircle2 className="h-5 w-5 text-gold-400 shrink-0" />
-          <span className="text-xs font-bold text-navy-100">{toastMessage.text}</span>
+        <div
+          className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl border transition-all duration-300 animate-bounce ${
+            toastMessage.type === 'error'
+              ? 'bg-rose-950/95 border-rose-500/60 text-white shadow-rose-900/40'
+              : toastMessage.type === 'warning'
+              ? 'bg-amber-950/95 border-amber-500/60 text-white shadow-amber-900/40'
+              : toastMessage.type === 'info'
+              ? 'bg-sky-950/95 border-sky-500/60 text-white shadow-sky-900/40'
+              : 'bg-navy-900 border-gold-400/40 text-white shadow-navy-950/50'
+          }`}
+        >
+          {toastMessage.type === 'error' ? (
+            <AlertOctagon className="h-5 w-5 text-rose-400 shrink-0" />
+          ) : toastMessage.type === 'warning' ? (
+            <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />
+          ) : toastMessage.type === 'info' ? (
+            <Info className="h-5 w-5 text-sky-400 shrink-0" />
+          ) : (
+            <CheckCircle2 className="h-5 w-5 text-gold-400 shrink-0" />
+          )}
+          <span className="text-xs font-bold text-navy-100 max-w-xs sm:max-w-md break-words">{toastMessage.text}</span>
           <button
-            onClick={() => setToastMessage(null)}
-            className="p-1 rounded hover:bg-navy-800 text-slate-400 hover:text-white"
+            onClick={() => toastService.hideToast()}
+            className="p-1 rounded hover:bg-white/10 text-slate-300 hover:text-white shrink-0"
+            aria-label="Dismiss notification"
           >
             <X className="h-4 w-4" />
           </button>
