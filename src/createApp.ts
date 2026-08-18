@@ -1,3 +1,4 @@
+// src/createApp.ts
 import "dotenv/config";
 import express from "express";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -47,19 +48,8 @@ export async function createApp() {
     next();
   });
 
-  // Initialize Neon Postgres database tables (await it properly)
-  try {
-    console.log('📦 [App] Initializing database...');
-    const initResult = await initDbTables();
-    if (initResult) {
-      console.log('✅ [App] Database initialization complete');
-    } else {
-      console.warn('⚠️ [App] Database initialization skipped or failed');
-    }
-  } catch (err) {
-    console.warn('⚠️ [App] Database initialization error:', err);
-    // Continue even if DB fails - we'll use in-memory fallback
-  }
+  // Initialize Neon Postgres database tables automatically in background
+  initDbTables().catch((err) => console.warn('Init DB tables error:', err));
 
   // Mount API handlers from src/api (auth, leads, login)
   app.use('/api', apiRouter);
@@ -83,6 +73,10 @@ export async function createApp() {
       },
     });
   };
+
+  // ============================================
+  // GEMINI ROUTES - MUST be defined BEFORE the 404 handler
+  // ============================================
 
   // Health / Gemini API Status Endpoint
   app.get("/api/gemini/status", (req, res) => {
@@ -435,8 +429,8 @@ Return structured JSON containing actionTitle, category, confidenceScore (number
     }
   });
 
-  // Catch-all 404 and error handlers for /api routes to prevent HTML/static 405 fallback pages
-  app.all(['/api/*', '/api', '/auth/*', '/login/*', '/signup/*', '/leads/*', '/gemini/*'], apiNotFoundHandler);
+  // ✅ IMPORTANT: 404 handler must come AFTER all routes
+  app.all('/api/*', apiNotFoundHandler);
   app.use(apiErrorHandler);
 
   return app;
