@@ -18,7 +18,7 @@ export type SqlClient = ReturnType<typeof neon>;
 const connectionString = process.env.DATABASE_URL || '';
 
 // ============================================
-// FALLBACK STUB FOR UNCONFIGURED DATABASE
+// FALLBACK STUB FOR UNCONFIGURATED DATABASE
 // ============================================
 
 function createUnconfiguredStub() {
@@ -48,6 +48,7 @@ function createUnconfiguredStub() {
 let sqlClient: SqlClient | null = null;
 let dbClient: DbClient | null = null;
 let isConnected = false;
+let connectionError: Error | null = null;
 
 try {
   if (connectionString && connectionString.startsWith('postgresql://')) {
@@ -59,15 +60,9 @@ try {
     // Initialize Drizzle with schema
     dbClient = drizzle(sqlClient, { schema });
     
-    // Test connection
-    try {
-      await dbClient.select().from(schema.users).limit(1);
-      isConnected = true;
-      console.log('✅ [DB] Connected successfully to Neon PostgreSQL');
-    } catch (testErr) {
-      console.warn('⚠️ [DB] Connection test failed, but continuing:', testErr);
-      isConnected = true; // Still mark as connected since we have a client
-    }
+    // Mark as connected (we'll test lazily)
+    isConnected = true;
+    console.log('✅ [DB] Client initialized successfully');
   } else {
     console.warn('⚠️ [DB] DATABASE_URL is not set or invalid — running with in-memory storage only.');
     console.warn('   Expected format: postgresql://username:password@host:port/database');
@@ -78,9 +73,29 @@ try {
   console.error('❌ [DB] Failed to initialize Neon DB client — falling back to in-memory storage:', err);
   if (err instanceof Error) {
     console.error('   Error details:', err.message);
+    connectionError = err;
   }
   sqlClient = null;
   dbClient = null;
+}
+
+// ============================================
+// ASYNC CONNECTION TESTER
+// ============================================
+
+export async function testConnection(): Promise<boolean> {
+  if (!dbClient || !isConnected) {
+    return false;
+  }
+
+  try {
+    await dbClient.select().from(schema.users).limit(1);
+    console.log('✅ [DB] Connection verified successfully');
+    return true;
+  } catch (error) {
+    console.warn('⚠️ [DB] Connection test failed:', error);
+    return false;
+  }
 }
 
 // ============================================
@@ -96,6 +111,9 @@ export const db: DbClient | null = dbClient;
 // Export connection status
 export const isDatabaseConnected = isConnected;
 
+// Export connection error if any
+export const getConnectionError = () => connectionError;
+
 // Export a helper to check database status
 export function getDbStatus() {
   return {
@@ -103,6 +121,7 @@ export function getDbStatus() {
     hasConnectionString: !!connectionString,
     clientInitialized: !!dbClient,
     connectionString: connectionString ? '***hidden***' : 'not set',
+    error: connectionError?.message || null,
   };
 }
 
@@ -126,8 +145,23 @@ export async function withDb<T>(
 
 // Export the schema for convenience
 export * from './schema.js';
+
+// Export init functions (will be used by createApp)
 export * from './init.js';
 
+// ============================================
+// AUTO-INITIALIZE IN DEVELOPMENT
+// ============================================
+
+// Only auto-initialize if not in production and not in build
+if (process.env.NODE_ENV === 'development' && !process.env.VITE_BUILD) {
+  import('./init.js').then(({ initDbTables }) => {
+    console.log('🔄 [DB] Auto-initializing in development mode...');
+    initDbTables().catch((err) => {
+      console.warn('⚠️ [DB] Auto-initialization failed:', err);
+    });
+  });
+}
 
 // ============================================
 // DEFAULT EXPORT
@@ -138,6 +172,8 @@ export default {
   db,
   isDatabaseConnected,
   getDbStatus,
+  getConnectionError,
+  testConnection,
   withDb,
   schema,
 };
