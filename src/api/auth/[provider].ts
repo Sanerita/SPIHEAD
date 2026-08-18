@@ -142,7 +142,11 @@ export async function exchangeOAuthCode(
 
 export async function handleProviderOAuthFlow(req: Request, res: Response) {
   try {
-    const provider = req.params.provider || req.query.provider || 'google';
+    // FIX: Ensure provider is a string - handles both string and array cases
+    const provider = typeof req.params.provider === 'string' 
+      ? req.params.provider 
+      : String(req.query.provider || 'google');
+    
     const code = req.query.code as string;
     
     if (!code) {
