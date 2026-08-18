@@ -20,7 +20,6 @@ function mapDbLeadToMemory(dbLead: any): any {
 router.get('/', async (req: Request, res: Response) => {
   try {
     console.log('📊 [LEADS] Fetching all leads...');
-    console.log('📊 [LEADS] Database connected:', isDatabaseConnected);
     
     // Try database first
     if (db && isDatabaseConnected) {
@@ -28,7 +27,6 @@ router.get('/', async (req: Request, res: Response) => {
         const dbLeads = await db.select().from(leads);
         console.log(`📊 [LEADS] Found ${dbLeads.length} leads in database`);
         
-        // Convert dates to strings for JSON response
         const formattedLeads = dbLeads.map(mapDbLeadToMemory);
         
         return res.json({
@@ -73,7 +71,6 @@ router.get('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    // Try database first
     if (db && isDatabaseConnected) {
       try {
         const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
@@ -86,7 +83,6 @@ router.get('/:id', async (req: Request, res: Response) => {
       }
     }
 
-    // Fallback to memory
     const memLead = memoryLeads.get(id);
     if (memLead) {
       return res.json({ success: true, lead: memLead });
@@ -105,10 +101,13 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// POST create lead
+// POST create lead - PRODUCTION READY with Neon DB persistence
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { name, email, phone, company, status, notes, industry, budget, userId, score, urgency, engagement } = req.body;
+    const { 
+      name, email, phone, company, status, notes, industry, 
+      budget, userId, score, urgency, engagement, tags 
+    } = req.body;
 
     // Validate required fields
     if (!name || name.trim().length < 2) {
@@ -126,10 +125,8 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const leadId = `lead_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const now = new Date(); // ✅ Use Date object for database
-    const nowISO = now.toISOString(); // ✅ Use string for JSON response
+    const now = new Date();
 
-    // Create lead with proper date handling
     const newLead = {
       id: leadId,
       userId: userId || null,
@@ -139,25 +136,19 @@ router.post('/', async (req: Request, res: Response) => {
       company: company || '',
       status: status || 'New',
       notes: notes || '',
-      industry: industry || '',
+      industry: industry || 'Technology',
       budget: budget ? Number(budget) : 0,
       score: score || 50,
       urgency: urgency || false,
       engagement: engagement || 1,
       replyCount: 0,
-      createdAt: now, // ✅ Date object for database
-      updatedAt: now, // ✅ Date object for database
+      tags: tags ? JSON.stringify(tags) : '[]',
+      createdAt: now,
+      updatedAt: now,
     };
 
-    // Store in memory with ISO strings
-    const memoryLead = {
-      ...newLead,
-      createdAt: nowISO,
-      updatedAt: nowISO,
-    };
-    memoryLeads.set(leadId, memoryLead);
-
-    // Try database
+    // ✅ ALWAYS try to save to database first
+    let dbSaved = false;
     if (db && isDatabaseConnected) {
       try {
         await db.insert(leads).values({
@@ -175,21 +166,33 @@ router.post('/', async (req: Request, res: Response) => {
           replyCount: newLead.replyCount,
           notes: newLead.notes,
           industry: newLead.industry,
-          createdAt: newLead.createdAt, // ✅ Date object
-          updatedAt: newLead.updatedAt, // ✅ Date object
+          tags: newLead.tags,
+          createdAt: newLead.createdAt,
+          updatedAt: newLead.updatedAt,
         });
-        console.log('✅ Lead saved to database:', leadId);
+        dbSaved = true;
+        console.log('✅ Lead saved to Neon DB:', leadId);
       } catch (dbErr) {
-        console.warn('Database save warning:', dbErr);
-        // Continue - we have memory backup
+        console.error('❌ Database save error:', dbErr);
+        // Continue with memory fallback
       }
     }
+
+    // Store in memory as fallback
+    const memoryLead = {
+      ...newLead,
+      createdAt: newLead.createdAt.toISOString(),
+      updatedAt: newLead.updatedAt.toISOString(),
+      tags: Array.isArray(tags) ? tags : [],
+    };
+    memoryLeads.set(leadId, memoryLead);
 
     return res.status(201).json({
       success: true,
       message: 'Lead created successfully',
       id: leadId,
-      lead: memoryLead
+      lead: memoryLead,
+      persistedToDb: dbSaved
     });
   } catch (error: any) {
     console.error('Error creating lead:', error);
@@ -215,7 +218,6 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     let existingLead = memoryLeads.get(id);
 
-    // Check database if not in memory
     if (!existingLead && db && isDatabaseConnected) {
       try {
         const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
@@ -236,8 +238,8 @@ router.put('/:id', async (req: Request, res: Response) => {
     }
 
     const allowedUpdates = ['name', 'email', 'phone', 'company', 'status', 'notes', 'industry', 'budget', 'score', 'urgency', 'engagement'];
-    const updatePayload: any = { updatedAt: new Date() }; // ✅ Date object for database
-    const updatePayloadMemory: any = { updatedAt: new Date().toISOString() }; // ✅ String for memory
+    const updatePayload: any = { updatedAt: new Date() };
+    const updatePayloadMemory: any = { updatedAt: new Date().toISOString() };
 
     for (const field of allowedUpdates) {
       if (updates[field] !== undefined) {
