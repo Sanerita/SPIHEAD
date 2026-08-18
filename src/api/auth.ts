@@ -79,7 +79,7 @@ export async function handleLogin(req: Request, res: Response) {
         jobTitle: 'Workspace Director',
         department: 'Executive Operations',
         ipAddress: req.ip || '127.0.0.1',
-        companyName: '',
+        companyName: 'SPIHEAD Enterprise',
         companySize: '11-50',
         selectedPlan: 'small-business'
       };
@@ -105,19 +105,11 @@ export async function handleLogin(req: Request, res: Response) {
       }
     }
 
-    // Validate or update password
+    // Validate password
     const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
     if (user.passwordHash && passwordHash !== user.passwordHash) {
-      // Auto-sync password for workspace user or pre-seeded demo user
-      user.passwordHash = passwordHash;
-      usersDb.set(cleanEmail, user);
-      if (db) {
-        try {
-          await db.update(users).set({ passwordHash }).where(eq(users.email, cleanEmail));
-        } catch (dbErr) {
-          console.warn('Sync user password in Neon DB warning:', dbErr);
-        }
-      }
+      if (res.headersSent) return;
+      return res.status(401).json({ success: false, error: 'Incorrect password provided for this account.' });
     }
 
     // Update last login timestamp and optional role override
@@ -149,7 +141,7 @@ export async function handleLogin(req: Request, res: Response) {
 
 /**
  * Handles POST /api/auth/signup
- * Inserts or updates user account in Neon PostgreSQL database via Drizzle ORM.
+ * Inserts new user account into Neon PostgreSQL database via Drizzle ORM.
  */
 export async function handleSignup(req: Request, res: Response) {
   if (res.headersSent) return;
@@ -161,13 +153,12 @@ export async function handleSignup(req: Request, res: Response) {
       return res.status(400).json({ success: false, error: 'A valid work email address is required.' });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-    const effectivePassword = (typeof password === 'string' && password.trim().length >= 6) ? password.trim() : 'Password123!';
-    const passwordHash = crypto.createHash('sha256').update(effectivePassword).digest('hex');
+    if (!password || typeof password !== 'string' || password.length < 6) {
+      if (res.headersSent) return;
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
+    }
 
-    const safeFullName = typeof fullName === 'string' ? fullName.trim() : (fullName ? String(fullName) : '');
-    const safeCompanyName = typeof companyName === 'string' ? companyName.trim() : (companyName ? String(companyName) : '');
-    const assignedRole = role || 'Admin';
+    const cleanEmail = email.trim().toLowerCase();
 
     // Check Neon DB and memory for existing user
     let existingInDb = null;
@@ -183,59 +174,19 @@ export async function handleSignup(req: Request, res: Response) {
     }
 
     if (existingInDb || usersDb.has(cleanEmail)) {
-      const existingUser: ServerUser = usersDb.get(cleanEmail) || {
-        id: existingInDb?.id || ('usr_' + Date.now().toString(36) + '_' + crypto.randomBytes(3).toString('hex')),
-        email: cleanEmail,
-        name: safeFullName || existingInDb?.name || 'Workspace Director',
-        passwordHash,
-        role: assignedRole,
-        authRole: assignedRole,
-        mfaEnabled: true,
-        pinCode: '1234',
-        lastLoginAt: new Date().toISOString(),
-        jobTitle: `${safeCompanyName || 'Enterprise'} Workspace Administrator`,
-        department: 'Executive Operations',
-        ipAddress: req.ip || '127.0.0.1',
-        companyName: safeCompanyName || existingInDb?.company || 'Enterprise Workspace',
-        companySize: companySize || '11-50',
-        selectedPlan: selectedPlan || 'small-business'
-      };
-
-      if (safeFullName) existingUser.name = safeFullName;
-      existingUser.passwordHash = passwordHash;
-      if (safeCompanyName) existingUser.companyName = safeCompanyName;
-      if (companySize) existingUser.companySize = companySize;
-      if (selectedPlan) existingUser.selectedPlan = selectedPlan;
-      existingUser.lastLoginAt = new Date().toISOString();
-
-      usersDb.set(cleanEmail, existingUser);
-
-      if (db) {
-        try {
-          await db.update(users).set({
-            name: existingUser.name,
-            company: existingUser.companyName,
-            passwordHash,
-            selectedPlan: existingUser.selectedPlan,
-          }).where(eq(users.email, cleanEmail));
-        } catch (dbErr) {
-          console.warn('Update existing user on signup warning:', dbErr);
-        }
-      }
-
-      const token = createSessionToken(cleanEmail);
-      const { passwordHash: _, ...publicProfile } = existingUser;
-
       if (res.headersSent) return;
-      return res.json({
-        success: true,
-        token,
-        user: publicProfile,
-        message: 'Enterprise workspace profile updated and signed in.'
+      return res.status(400).json({
+        success: false,
+        error: `An account with ${cleanEmail} already exists. Please sign in instead.`
       });
     }
 
+    const safeFullName = typeof fullName === 'string' ? fullName.trim() : (fullName ? String(fullName) : '');
+    const safeCompanyName = typeof companyName === 'string' ? companyName.trim() : (companyName ? String(companyName) : '');
+
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
     const userId = 'usr_' + Date.now().toString(36) + '_' + crypto.randomBytes(3).toString('hex');
+    const assignedRole = role || 'Admin';
 
     const newUser: ServerUser = {
       id: userId,
@@ -566,24 +517,16 @@ router.all(['/:provider', '/:provider/'], (req, res, next) => {
   return handleProviderOAuthFlow(req, res);
 });
 
-// 6. Direct OAuth SSO POST handler
+// 6. Deprecated: this used to silently fabricate a demo login when the real
+// OAuth popup was blocked/closed, masking real Microsoft/Google auth errors
+// behind a fake success. It's no longer called by the frontend (the popup
+// flow was fixed instead), and now returns an explicit error rather than a
+// fake identity, in case anything still hits it.
 router.post('/oauth/sso', async (req: Request, res: Response) => {
-  try {
-    const { provider, email } = req.body;
-    const providerName = provider === 'google' ? 'Google Workspace' : 'Microsoft 365';
-    const targetEmail = email || (provider === 'google' ? 'google.workspace@spihead.com' : 'm365.executive@spihead.com');
-    const name = provider === 'google' ? 'Google Workspace Director' : 'Microsoft 365 Enterprise Lead';
-
-    const { token, user } = await completeOAuthSignIn(targetEmail, name, providerName, req);
-    return res.json({
-      success: true,
-      token,
-      user,
-      message: `Signed in via ${providerName} Single Sign-On.`
-    });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err.message || 'OAuth SSO failed' });
-  }
+  return res.status(410).json({
+    success: false,
+    error: 'This demo SSO shortcut has been disabled. Please use the real Microsoft/Google sign-in popup.',
+  });
 });
 
 // 7. Logout Endpoint (/api/auth/logout)
