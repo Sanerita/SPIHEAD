@@ -300,7 +300,8 @@ export async function initDbTables(): Promise<boolean> {
     
     for (const [tableName, createSQL] of Object.entries(TABLES)) {
       try {
-       await sql.query(createSQL);
+        // ✅ FIX: Use template literal with sql
+        await sql`${createSQL}`;
         console.log(`   ✅ Table "${tableName}" created/verified`);
         createdCount++;
       } catch (error) {
@@ -315,7 +316,8 @@ export async function initDbTables(): Promise<boolean> {
     
     for (const indexSQL of INDEXES) {
       try {
-        await sql(indexSQL);
+        // ✅ FIX: Use template literal with sql
+        await sql`${indexSQL}`;
         indexCount++;
       } catch (error) {
         console.warn(`   ⚠️ Error creating index:`, error);
