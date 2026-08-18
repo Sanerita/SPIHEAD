@@ -43,6 +43,22 @@ export function apiErrorHandler(
   });
 }
 
+// Debug endpoint to check database status
+app.get('/api/debug/db', (req, res) => {
+  try {
+    const status = {
+      database_url: !!process.env.DATABASE_URL,
+      db_connected: !!db,
+      is_connected: isDatabaseConnected,
+      node_env: process.env.NODE_ENV,
+      timestamp: new Date().toISOString()
+    };
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: String(error) });
+  }
+});
+
 // Apply middleware to router
 apiRouter.use(apiNotFoundHandler);
 apiRouter.use(apiErrorHandler);
