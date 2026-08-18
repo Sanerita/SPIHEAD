@@ -222,6 +222,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     let existingLead = memoryLeads.get(id);
 
+    // Check database if not in memory
     if (!existingLead && db && isDatabaseConnected) {
       try {
         const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
