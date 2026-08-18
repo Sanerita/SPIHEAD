@@ -47,8 +47,19 @@ export async function createApp() {
     next();
   });
 
-  // Initialize Neon Postgres database tables automatically in background
-  initDbTables().catch((err) => console.warn('Init DB tables error:', err));
+  // Initialize Neon Postgres database tables (await it properly)
+  try {
+    console.log('📦 [App] Initializing database...');
+    const initResult = await initDbTables();
+    if (initResult) {
+      console.log('✅ [App] Database initialization complete');
+    } else {
+      console.warn('⚠️ [App] Database initialization skipped or failed');
+    }
+  } catch (err) {
+    console.warn('⚠️ [App] Database initialization error:', err);
+    // Continue even if DB fails - we'll use in-memory fallback
+  }
 
   // Mount API handlers from src/api (auth, leads, login)
   app.use('/api', apiRouter);
