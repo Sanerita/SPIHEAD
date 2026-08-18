@@ -138,7 +138,6 @@ export async function handleRegister(req: Request, res: Response) {
     const userId = `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
     const nowISO = new Date().toISOString();
 
-    // Create user object with ONLY columns that exist in database
     const user = {
       id: userId,
       email: cleanEmail,
@@ -153,7 +152,6 @@ export async function handleRegister(req: Request, res: Response) {
       updatedAt: nowISO,
     };
 
-    // Store in memory with ISO strings
     const userForMemory = {
       ...user,
       lastLoginAt: nowISO,
@@ -171,7 +169,6 @@ export async function handleRegister(req: Request, res: Response) {
     usersDb.set(cleanEmail, userForMemory);
     console.log('✅ [REGISTER] User stored in memory');
 
-    // Save to database (ONLY columns that exist)
     if (db && isDatabaseConnected) {
       try {
         console.log('💾 [REGISTER] Saving to database...');
