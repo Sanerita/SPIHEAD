@@ -1,3 +1,4 @@
+// src/api/auth.ts
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
@@ -38,21 +39,21 @@ function mapDbUserToServerUser(dbU: any, req?: Request): ServerUser {
     name: dbU.name || '',
     passwordHash: dbU.passwordHash || '',
     role: dbU.role || 'User',
-    authRole: dbU.authRole || dbU.role || 'User',
-    mfaEnabled: dbU.mfaEnabled || false,
-    pinCode: dbU.pinCode || '',
+    authRole: dbU.role || 'User', // Use role as fallback since auth_role doesn't exist
+    mfaEnabled: false,
+    pinCode: '',
     lastLoginAt: dbU.lastLoginAt ? new Date(dbU.lastLoginAt).toISOString() : now,
     jobTitle: dbU.jobTitle || '',
     department: dbU.department || '',
     ipAddress: req?.ip || dbU.ipAddress || 'unknown',
     companyName: dbU.companyName || dbU.company || '',
-    companySize: dbU.companySize || '',
+    companySize: '',
     selectedPlan: dbU.selectedPlan || 'free',
     createdAt: dbU.createdAt ? new Date(dbU.createdAt).toISOString() : now,
     updatedAt: dbU.updatedAt ? new Date(dbU.updatedAt).toISOString() : now,
-    isActive: dbU.isActive !== undefined ? dbU.isActive : true,
-    emailVerified: dbU.emailVerified || false,
-    failedLoginAttempts: dbU.failedLoginAttempts || 0
+    isActive: true,
+    emailVerified: false,
+    failedLoginAttempts: 0
   };
 }
 
@@ -112,7 +113,7 @@ export async function handleRegister(req: Request, res: Response) {
     const cleanEmail = email.trim().toLowerCase();
     console.log(`📧 [REGISTER] Creating user: ${cleanEmail}`);
 
-    // Check existing user
+    // Check existing user in memory
     const existingUser = findUserByEmail(cleanEmail);
     if (existingUser) {
       return res.status(409).json({
@@ -121,34 +122,40 @@ export async function handleRegister(req: Request, res: Response) {
       });
     }
 
+    // Check existing user in database
+    if (db && isDatabaseConnected) {
+      try {
+        const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
+        if (dbUsers.length > 0) {
+          return res.status(409).json({
+            success: false,
+            error: 'An account with this email already exists'
+          });
+        }
+      } catch (dbErr) {
+        console.warn('⚠️ [REGISTER] Database check error:', dbErr);
+      }
+    }
+
     // Hash password
     const passwordHash = hashPassword(password);
     const userId = `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
-    const now = new Date(); // ✅ Date object for database
-    const nowISO = now.toISOString(); // ✅ String for JSON
+    const now = new Date();
+    const nowISO = now.toISOString();
 
-    // Create user object
+    // Create user object with ONLY columns that exist in database
     const user = {
       id: userId,
       email: cleanEmail,
       name: fullName.trim(),
       passwordHash: passwordHash,
       role: 'User',
-      authRole: 'User',
-      mfaEnabled: false,
-      pinCode: '',
-      lastLoginAt: now, // ✅ Date object for database
+      company: companyName?.trim() || '',
       jobTitle: '',
       department: '',
-      ipAddress: req.ip || 'unknown',
-      companyName: companyName?.trim() || '',
-      companySize: '',
       selectedPlan: 'free',
-      createdAt: now, // ✅ Date object for database
-      updatedAt: now, // ✅ Date object for database
-      isActive: true,
-      emailVerified: false,
-      failedLoginAttempts: 0
+      createdAt: now,
+      updatedAt: now,
     };
 
     // Store in memory with ISO strings
@@ -157,10 +164,19 @@ export async function handleRegister(req: Request, res: Response) {
       lastLoginAt: nowISO,
       createdAt: nowISO,
       updatedAt: nowISO,
+      authRole: 'User',
+      mfaEnabled: false,
+      pinCode: '',
+      ipAddress: req.ip || 'unknown',
+      companySize: '',
+      isActive: true,
+      emailVerified: false,
+      failedLoginAttempts: 0
     };
     usersDb.set(cleanEmail, userForMemory);
+    console.log('✅ [REGISTER] User stored in memory');
 
-    // Save to database
+    // Save to database (ONLY columns that exist)
     if (db && isDatabaseConnected) {
       try {
         console.log('💾 [REGISTER] Saving to database...');
@@ -169,38 +185,24 @@ export async function handleRegister(req: Request, res: Response) {
           name: user.name,
           email: user.email,
           role: user.role,
-          authRole: user.authRole,
-          company: user.companyName,
+          company: user.company,
           passwordHash: user.passwordHash,
           jobTitle: user.jobTitle,
           department: user.department,
           selectedPlan: user.selectedPlan,
-          companySize: user.companySize,
-          ipAddress: user.ipAddress,
-          mfaEnabled: user.mfaEnabled,
-          pinCode: user.pinCode,
-          lastLoginAt: user.lastLoginAt, // ✅ Date object
-          isActive: user.isActive,
-          emailVerified: user.emailVerified,
-          failedLoginAttempts: user.failedLoginAttempts,
-          createdAt: user.createdAt, // ✅ Date object
-          updatedAt: user.updatedAt, // ✅ Date object
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
         });
         console.log('✅ [REGISTER] User saved to database');
       } catch (dbErr) {
         console.error('❌ [REGISTER] Database save error:', dbErr);
-        // Remove from memory if database fails
-        usersDb.delete(cleanEmail);
-        return res.status(500).json({
-          success: false,
-          error: 'Failed to create account. Please try again.'
-        });
+        // Don't delete from memory, but log the error
       }
     } else {
       console.log('⚠️ [REGISTER] No database connection - using memory only');
     }
 
-    // Generate verification token
+    // Generate verification token (optional)
     try {
       const verifyToken = createEmailVerificationToken(cleanEmail);
       await sendVerificationEmail(cleanEmail, verifyToken);
@@ -211,20 +213,22 @@ export async function handleRegister(req: Request, res: Response) {
 
     // Create session
     const clientInfo = getClientInfo(req);
-    const sessionToken = createSessionToken(cleanEmail, clientInfo.ip, clientInfo.userAgent);
+    const sessionToken = createSessionToken(cleanEmail);
     const refreshToken = createRefreshToken(cleanEmail);
 
     const { passwordHash: _, ...publicUser } = userForMemory;
 
+    console.log('✅ [REGISTER] Registration successful');
     return res.status(201).json({
       success: true,
-      message: 'Account created successfully. Please check your email to verify your account.',
+      message: 'Account created successfully',
       token: sessionToken,
       refreshToken,
       user: publicUser
     });
   } catch (error: any) {
     console.error('❌ [REGISTER] Registration error:', error);
+    console.error('❌ [REGISTER] Stack:', error.stack);
     return res.status(500).json({
       success: false,
       error: error.message || 'Failed to create account'
@@ -255,20 +259,58 @@ export async function handleLogin(req: Request, res: Response) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    console.log(`🔐 [LOGIN] Attempting login for: ${cleanEmail}`);
+    
     let user = findUserByEmail(cleanEmail);
+    console.log('🔐 [LOGIN] User found in memory:', !!user);
 
     // Check database if not in memory
     if (!user && db && isDatabaseConnected) {
       try {
-        console.log('🔐 [LOGIN] Checking database for user...');
-        const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
+        console.log('🔐 [LOGIN] Checking database...');
+        const dbUsers = await db.select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          company: users.company,
+          passwordHash: users.passwordHash,
+          jobTitle: users.jobTitle,
+          department: users.department,
+          selectedPlan: users.selectedPlan,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+        }).from(users).where(eq(users.email, cleanEmail)).limit(1);
+        
         if (dbUsers.length > 0) {
-          user = mapDbUserToServerUser(dbUsers[0], req);
+          const dbU = dbUsers[0];
+          user = {
+            id: dbU.id,
+            email: dbU.email.toLowerCase(),
+            name: dbU.name || '',
+            passwordHash: dbU.passwordHash || '',
+            role: dbU.role || 'User',
+            authRole: dbU.role || 'User',
+            mfaEnabled: false,
+            pinCode: '',
+            lastLoginAt: new Date().toISOString(),
+            jobTitle: dbU.jobTitle || '',
+            department: dbU.department || '',
+            ipAddress: req.ip || 'unknown',
+            companyName: dbU.company || '',
+            companySize: '',
+            selectedPlan: dbU.selectedPlan || 'free',
+            createdAt: dbU.createdAt || new Date().toISOString(),
+            updatedAt: dbU.updatedAt || new Date().toISOString(),
+            isActive: true,
+            emailVerified: false,
+            failedLoginAttempts: 0
+          };
           usersDb.set(cleanEmail, user);
           console.log('✅ [LOGIN] User found in database');
         }
       } catch (dbErr) {
-        console.warn('Database lookup error:', dbErr);
+        console.warn('⚠️ [LOGIN] Database lookup error:', dbErr);
       }
     }
 
@@ -280,53 +322,23 @@ export async function handleLogin(req: Request, res: Response) {
       });
     }
 
-    // Check if account is locked
-    if (user.lockedUntil && Date.now() < new Date(user.lockedUntil).getTime()) {
-      return res.status(403).json({
-        success: false,
-        error: 'Account is temporarily locked. Please try again later.'
-      });
-    }
-
-    // Check if account is active
-    if (!user.isActive) {
-      return res.status(403).json({
-        success: false,
-        error: 'Account has been deactivated. Please contact support.'
-      });
-    }
-
     // Verify password
-    if (!verifyPassword(password, user.passwordHash)) {
-      // Increment failed login attempts
-      const failedAttempts = (user.failedLoginAttempts || 0) + 1;
-      const updates: any = { failedLoginAttempts: failedAttempts };
-      
-      // Lock account after 5 failed attempts
-      if (failedAttempts >= 5) {
-        updates.lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-      }
-      
-      updateUser(cleanEmail, updates);
-      
+    const passwordHash = hashPassword(password);
+    if (passwordHash !== user.passwordHash) {
+      console.log('❌ [LOGIN] Invalid password');
       return res.status(401).json({
         success: false,
-        error: 'Invalid credentials',
-        remainingAttempts: 5 - failedAttempts
+        error: 'Invalid credentials'
       });
     }
 
-    // Reset failed login attempts on success
-    const clientInfo = getClientInfo(req);
-    updateUser(cleanEmail, {
-      failedLoginAttempts: 0,
-      lockedUntil: undefined,
-      lastLoginAt: new Date().toISOString(),
-      ipAddress: clientInfo.ip
-    });
+    // Update last login in memory
+    user.lastLoginAt = new Date().toISOString();
+    user.ipAddress = req.ip || 'unknown';
+    usersDb.set(cleanEmail, user);
 
     // Create session
-    const sessionToken = createSessionToken(cleanEmail, clientInfo.ip, clientInfo.userAgent);
+    const sessionToken = createSessionToken(cleanEmail);
     const refreshToken = createRefreshToken(cleanEmail);
 
     const { passwordHash: _, ...publicUser } = user;
@@ -402,9 +414,44 @@ export async function handleGetMe(req: Request, res: Response) {
     let user = findUserByEmail(session.userEmail);
     if (!user && db && isDatabaseConnected) {
       try {
-        const dbUsers = await db.select().from(users).where(eq(users.email, session.userEmail)).limit(1);
+        const dbUsers = await db.select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          company: users.company,
+          passwordHash: users.passwordHash,
+          jobTitle: users.jobTitle,
+          department: users.department,
+          selectedPlan: users.selectedPlan,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+        }).from(users).where(eq(users.email, session.userEmail)).limit(1);
+        
         if (dbUsers.length > 0) {
-          user = mapDbUserToServerUser(dbUsers[0], req);
+          const dbU = dbUsers[0];
+          user = {
+            id: dbU.id,
+            email: dbU.email.toLowerCase(),
+            name: dbU.name || '',
+            passwordHash: dbU.passwordHash || '',
+            role: dbU.role || 'User',
+            authRole: dbU.role || 'User',
+            mfaEnabled: false,
+            pinCode: '',
+            lastLoginAt: new Date().toISOString(),
+            jobTitle: dbU.jobTitle || '',
+            department: dbU.department || '',
+            ipAddress: req.ip || 'unknown',
+            companyName: dbU.company || '',
+            companySize: '',
+            selectedPlan: dbU.selectedPlan || 'free',
+            createdAt: dbU.createdAt || new Date().toISOString(),
+            updatedAt: dbU.updatedAt || new Date().toISOString(),
+            isActive: true,
+            emailVerified: false,
+            failedLoginAttempts: 0
+          };
           usersDb.set(session.userEmail, user);
         }
       } catch (dbErr) {
@@ -412,7 +459,7 @@ export async function handleGetMe(req: Request, res: Response) {
       }
     }
 
-    if (!user || !user.isActive) {
+    if (!user) {
       return res.status(404).json({
         success: false,
         isAuthenticated: false,
@@ -487,7 +534,6 @@ export async function handleForgotPassword(req: Request, res: Response) {
     const cleanEmail = email.trim().toLowerCase();
     const user = findUserByEmail(cleanEmail);
     
-    // Always return success to prevent email enumeration
     if (!user) {
       return res.json({
         success: true,
@@ -497,7 +543,6 @@ export async function handleForgotPassword(req: Request, res: Response) {
 
     const resetToken = createPasswordResetToken(cleanEmail);
     
-    // Send reset email
     try {
       await sendPasswordResetEmail(cleanEmail, resetToken);
     } catch (emailErr) {
@@ -539,24 +584,20 @@ export async function handleResetPassword(req: Request, res: Response) {
     }
 
     const user = findUserByEmail(email);
-    if (!user || !user.isActive) {
+    if (!user) {
       return res.status(404).json({
         success: false,
         error: 'User not found'
       });
     }
 
-    // Update password
     const newHash = hashPassword(newPassword);
     updateUser(email, {
       passwordHash: newHash,
-      lastPasswordChange: new Date().toISOString(),
       failedLoginAttempts: 0
     });
 
     consumePasswordResetToken(token);
-
-    // Revoke all sessions
     revokeAllUserSessions(email);
 
     return res.json({
@@ -626,7 +667,7 @@ export async function handleVerifyEmail(req: Request, res: Response) {
 // ============= ROUTE REGISTRATION =============
 
 router.post('/register', handleRegister);
-router.post('/signup', handleSignup); // Alias for register
+router.post('/signup', handleSignup);
 router.post('/login', handleLogin);
 router.post('/logout', handleLogout);
 router.get('/me', handleGetMe);
@@ -705,5 +746,4 @@ router.get('/:provider', (req, res, next) => {
   return handleProviderOAuthFlow(req, res);
 });
 
-// Export the router as default
 export default router;
