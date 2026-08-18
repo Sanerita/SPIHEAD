@@ -8,6 +8,32 @@ import { saveOAuthToken } from '../../lib/graphMailService.server.js';
 
 const router = Router();
 
+// Helper function to ensure all required fields are present
+function ensureServerUser(userData: any): ServerUser {
+  const now = new Date().toISOString();
+  return {
+    id: userData.id || `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`,
+    email: userData.email.toLowerCase(),
+    name: userData.name || 'User',
+    passwordHash: userData.passwordHash || crypto.createHash('sha256').update('OAuthPass123!').digest('hex'),
+    role: userData.role || 'Admin',
+    authRole: userData.authRole || userData.role || 'Admin',
+    mfaEnabled: userData.mfaEnabled !== undefined ? userData.mfaEnabled : true,
+    pinCode: userData.pinCode || '1234',
+    lastLoginAt: userData.lastLoginAt || now,
+    jobTitle: userData.jobTitle || `${userData.provider || 'OAuth'} Administrator`,
+    department: userData.department || 'Executive Operations',
+    ipAddress: userData.ipAddress || '127.0.0.1',
+    companyName: userData.companyName || '',
+    companySize: userData.companySize || '',
+    selectedPlan: userData.selectedPlan || 'enterprise',
+    createdAt: userData.createdAt || now,
+    updatedAt: userData.updatedAt || now,
+    isActive: userData.isActive !== undefined ? userData.isActive : true,
+    emailVerified: userData.emailVerified !== undefined ? userData.emailVerified : true // OAuth users are verified
+  };
+}
+
 interface OAuthTokenResponse {
   access_token?: string;
   id_token?: string;
@@ -174,7 +200,7 @@ export async function secureUserSessionMapping(profile: UserProfile, req: Reques
       const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
       if (dbUsers.length > 0) {
         const dbU = dbUsers[0];
-        user = {
+        user = ensureServerUser({
           id: dbU.id,
           email: dbU.email,
           name: dbU.name,
@@ -188,8 +214,10 @@ export async function secureUserSessionMapping(profile: UserProfile, req: Reques
           department: dbU.department || 'Executive Operations',
           ipAddress: req.ip || '127.0.0.1',
           companyName: dbU.company || `${profile.provider} Organization`,
-          selectedPlan: dbU.selectedPlan || 'enterprise'
-        };
+          selectedPlan: dbU.selectedPlan || 'enterprise',
+          provider: profile.provider,
+          emailVerified: true // OAuth users are verified
+        });
       }
     } catch (err) {
       console.warn('Neon DB lookup error during OAuth user mapping:', err);
@@ -198,7 +226,7 @@ export async function secureUserSessionMapping(profile: UserProfile, req: Reques
 
   if (!user) {
     const userId = 'usr_oauth_' + Date.now().toString(36) + '_' + crypto.randomBytes(3).toString('hex');
-    user = {
+    user = ensureServerUser({
       id: userId,
       email: cleanEmail,
       name: profile.name || `${profile.provider} User`,
@@ -212,8 +240,10 @@ export async function secureUserSessionMapping(profile: UserProfile, req: Reques
       department: 'Executive Operations',
       ipAddress: req.ip || '127.0.0.1',
       companyName: `${profile.provider} Enterprise Workspace`,
-      selectedPlan: 'enterprise'
-    };
+      selectedPlan: 'enterprise',
+      provider: profile.provider,
+      emailVerified: true // OAuth users are verified
+    });
 
     usersDb.set(cleanEmail, user);
 
@@ -236,6 +266,7 @@ export async function secureUserSessionMapping(profile: UserProfile, req: Reques
     }
   } else {
     user.lastLoginAt = new Date().toISOString();
+    user.updatedAt = new Date().toISOString();
     usersDb.set(cleanEmail, user);
   }
 
