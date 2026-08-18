@@ -4,79 +4,62 @@ import { m365Service } from './m365Service';
 import { companyService } from './companyService';
 import { apiClient } from './apiClient';
 
-const INITIAL_LEADS: Lead[] = [];
-
-const INITIAL_MEETINGS: Meeting[] = [];
-
-const INITIAL_ACTIVITIES: Activity[] = [];
-
-const INITIAL_EMAILS: EmailMessage[] = [];
-
 export class CRMStore {
   private leads: Lead[] = [];
   private meetings: Meeting[] = [];
   private activities: Activity[] = [];
   private emails: EmailMessage[] = [];
   private listeners: (() => void)[] = [];
+  private isLoading: boolean = false;
 
   constructor() {
     this.loadFromStorage();
-    this.syncFromBackend();
+    // Load from backend asynchronously
+    this.loadFromBackend();
   }
 
-  public async syncFromBackend() {
+  /**
+   * Load data from Neon PostgreSQL via API
+   * This replaces the hardcoded demo data with real database content
+   */
+  public async loadFromBackend() {
+    if (this.isLoading) return;
+    this.isLoading = true;
+
     try {
-      const data = await apiClient.get('/api/leads', { silent: true });
-      if (data && data.success && Array.isArray(data.leads) && data.leads.length > 0) {
-        const loadedLeads: Lead[] = data.leads.map((l: any) => ({
-          id: l.id,
-          name: l.name,
-          email: l.email || '',
-          phone: l.phone || '',
-          company: l.company || '',
-          budget: l.budget || 0,
-          status: (l.status as LeadStatus) || 'New',
-          score: l.score || 50,
-          urgency: !!l.urgency,
-          engagement: l.engagement || 1,
-          replyCount: l.replyCount || 0,
-          notes: l.notes || '',
-          industry: l.industry || 'Technology',
-          tags: typeof l.tags === 'string' ? JSON.parse(l.tags || '[]') : (Array.isArray(l.tags) ? l.tags : []),
+      // Load leads from backend
+      const leadsRes = await apiClient.get('/api/leads', { silent: true });
+      if (leadsRes?.success && Array.isArray(leadsRes.leads) && leadsRes.leads.length > 0) {
+        this.leads = leadsRes.leads.map((l: any) => ({
+          ...l,
           createdAt: l.createdAt || new Date().toISOString(),
           updatedAt: l.updatedAt || new Date().toISOString(),
-          lastContact: l.updatedAt || null,
-          m365Synced: true,
+          score: l.score || 50,
+          m365Synced: l.m365Synced !== undefined ? l.m365Synced : true,
         }));
-        this.leads = loadedLeads;
         this.saveLeads();
-        this.notify();
+        console.log(`✅ Loaded ${this.leads.length} leads from Neon DB`);
+      } else {
+        // If no leads in DB, try to create sample data for new users
+        console.log('📊 No leads found in database. User may need to add leads.');
       }
+
+      // TODO: Load meetings, activities, emails from backend endpoints
+      // For now, they remain in localStorage
+
+      this.notify();
     } catch (err) {
-      console.warn("Could not sync leads from backend:", err);
+      console.warn('⚠️ Could not load data from backend, using local storage:', err);
+    } finally {
+      this.isLoading = false;
     }
   }
 
   private loadFromStorage() {
-    const isCleanedForProd = localStorage.getItem('spihead_prod_clean_v10');
-    if (!isCleanedForProd) {
-      localStorage.setItem('spihead_prod_clean_v10', 'true');
-      localStorage.removeItem('spihead_crm_leads');
-      localStorage.removeItem('albatross_crm_leads');
-      localStorage.removeItem('spihead_crm_meetings');
-      localStorage.removeItem('albatross_crm_meetings');
-      localStorage.removeItem('spihead_crm_activities');
-      localStorage.removeItem('albatross_crm_activities');
-      localStorage.removeItem('spihead_crm_emails');
-      localStorage.removeItem('albatross_crm_emails');
-      this.clearAllData();
-      return;
-    }
-
-    const savedLeads = localStorage.getItem('spihead_crm_leads') || localStorage.getItem('albatross_crm_leads');
-    const savedMeetings = localStorage.getItem('spihead_crm_meetings') || localStorage.getItem('albatross_crm_meetings');
-    const savedActivities = localStorage.getItem('spihead_crm_activities') || localStorage.getItem('albatross_crm_activities');
-    const savedEmails = localStorage.getItem('spihead_crm_emails') || localStorage.getItem('albatross_crm_emails');
+    const savedLeads = localStorage.getItem('spihead_crm_leads');
+    const savedMeetings = localStorage.getItem('spihead_crm_meetings');
+    const savedActivities = localStorage.getItem('spihead_crm_activities');
+    const savedEmails = localStorage.getItem('spihead_crm_emails');
 
     if (savedLeads !== null) {
       try {
@@ -152,11 +135,14 @@ export class CRMStore {
     return this.leads.find((l) => l.id === id);
   }
 
+  /**
+   * Add a new lead - persists to both localStorage and Neon DB
+   */
   addLead(leadData: Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'score' | 'scoreBreakdown'>): Lead {
     const { score, breakdown } = calculateLeadEnergyScore(leadData);
     const newLead: Lead = {
       ...leadData,
-      id: `lead-${Date.now()}`,
+      id: `lead_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       score,
       scoreBreakdown: breakdown,
       createdAt: new Date().toISOString(),
@@ -168,10 +154,14 @@ export class CRMStore {
     this.leads.unshift(newLead);
     this.saveLeads();
 
-    // Persist to Neon Postgres backend
+    // ✅ PERSIST TO NEON DB
     apiClient.post('/api/leads', newLead, {
-      customErrorToast: 'Failed to save lead to backend server'
-    }).catch(err => console.warn('Lead DB persist error:', err));
+      customErrorToast: 'Failed to save lead to server'
+    }).then(res => {
+      if (res?.success) {
+        console.log('✅ Lead saved to Neon DB:', res.id);
+      }
+    }).catch(err => console.warn('⚠️ Lead DB persist error:', err));
 
     this.addActivity({
       type: 'lead_added',
@@ -184,6 +174,9 @@ export class CRMStore {
     return newLead;
   }
 
+  /**
+   * Update a lead - persists to both localStorage and Neon DB
+   */
   updateLead(id: string, updates: Partial<Lead>): Lead | undefined {
     const index = this.leads.findIndex((l) => l.id === id);
     if (index === -1) return undefined;
@@ -199,12 +192,13 @@ export class CRMStore {
     };
 
     this.saveLeads();
-    this.notify();
 
+    // ✅ UPDATE IN NEON DB
     apiClient.put(`/api/leads/${id}`, updates, {
-      customErrorToast: `Failed to update lead (${id}) on backend server`
-    }).catch(err => console.warn('Lead DB update error:', err));
+      customErrorToast: `Failed to update lead on server`
+    }).catch(err => console.warn('⚠️ Lead DB update error:', err));
 
+    this.notify();
     return this.leads[index];
   }
 
@@ -227,14 +221,18 @@ export class CRMStore {
     return updated;
   }
 
+  /**
+   * Delete a lead - removes from both localStorage and Neon DB
+   */
   deleteLead(id: string): void {
     const lead = this.getLeadById(id);
     this.leads = this.leads.filter((l) => l.id !== id);
     this.saveLeads();
 
+    // ✅ DELETE FROM NEON DB
     apiClient.delete(`/api/leads/${id}`, {
-      customErrorToast: `Failed to delete lead from backend server`
-    }).catch(err => console.warn('Lead DB delete error:', err));
+      customErrorToast: `Failed to delete lead from server`
+    }).catch(err => console.warn('⚠️ Lead DB delete error:', err));
 
     if (lead) {
       this.addActivity({
@@ -263,7 +261,6 @@ export class CRMStore {
     this.meetings.unshift(newMeeting);
     this.saveMeetings();
 
-    // Update lead contact time
     if (meetingData.leadId) {
       this.updateLead(meetingData.leadId, { lastContact: new Date().toISOString() });
     }
@@ -305,7 +302,6 @@ export class CRMStore {
 
     const updated = this.updateMeeting(id, { status });
     if (status === 'Completed' && mtg.leadId) {
-      // Boost engagement for lead
       const lead = this.getLeadById(mtg.leadId);
       if (lead) {
         this.updateLead(mtg.leadId, {
@@ -336,7 +332,6 @@ export class CRMStore {
     this.emails.unshift(newEmail);
     this.saveEmails();
 
-    // Update lead contact time and reply count
     const lead = this.getLeadById(emailData.leadId);
     if (lead) {
       this.updateLead(emailData.leadId, {
@@ -374,7 +369,6 @@ export class CRMStore {
     m365Service.syncContactsToM365(this.leads);
     m365Service.syncMeetingsToCalendar(this.meetings);
 
-    // Mark all leads as synced
     this.leads = this.leads.map((l) => ({ ...l, m365Synced: true }));
     this.saveLeads();
 
@@ -397,7 +391,6 @@ export class CRMStore {
     this.saveActivities();
     this.saveEmails();
 
-    // Reset M365 account counters to 0
     const account = m365Service.getAccount();
     account.syncedContactsCount = 0;
     account.syncedEmailsCount = 0;
@@ -407,55 +400,43 @@ export class CRMStore {
     this.notify();
   }
 
+  /**
+   * Restore sample data - only for demo/testing purposes
+   * In production, this should be disabled or require admin confirmation
+   */
   restoreSampleData(): void {
-    this.leads = INITIAL_LEADS;
-    this.meetings = INITIAL_MEETINGS;
-    this.activities = INITIAL_ACTIVITIES;
-    this.emails = INITIAL_EMAILS;
-    this.saveLeads();
-    this.saveMeetings();
-    this.saveActivities();
-    this.saveEmails();
-
-    // Restore M365 account counters to match sample counts
-    const account = m365Service.getAccount();
-    account.syncedContactsCount = INITIAL_LEADS.length;
-    account.syncedEmailsCount = INITIAL_EMAILS.length;
-    account.syncedEventsCount = INITIAL_MEETINGS.length;
-    m365Service.saveAccount(account);
-
+    // This is intentionally kept minimal - it should not override real data
+    // In production, you may want to disable this entirely
+    console.warn('⚠️ restoreSampleData() called - this should only be used for demos');
+    
+    // Only add sample data if there are no existing leads
+    if (this.leads.length === 0) {
+      // Add a single sample lead as an example
+      this.addLead({
+        name: 'Sample Lead',
+        email: 'sample@example.com',
+        phone: '+1 (555) 000-0000',
+        company: 'Sample Company',
+        budget: 50000,
+        status: 'New',
+        urgency: false,
+        engagement: 3,
+        replyCount: 0,
+        notes: 'Sample lead for demonstration purposes.',
+        industry: 'Technology',
+        m365Synced: true,
+        tags: ['Sample', 'Demo'],
+      });
+    }
+    
     this.notify();
   }
 
   adaptToCompanyProfile(industry: string, companyName?: string): void {
     const profile = companyService.adaptToIndustry(industry, companyName);
-    const sampleLeads = companyService.getSampleLeadsForIndustry(industry);
-
-    if (sampleLeads && sampleLeads.length > 0) {
-      const formattedLeads: Lead[] = sampleLeads.map((sl, idx) => ({
-        id: `lead-ind-${Date.now()}-${idx}`,
-        name: sl.name,
-        email: sl.email,
-        phone: sl.phone,
-        company: sl.company,
-        budget: sl.budget,
-        status: sl.status,
-        score: sl.score || 85,
-        urgency: sl.urgency || false,
-        engagement: sl.engagement || 4,
-        replyCount: sl.replyCount || 3,
-        notes: sl.notes,
-        createdAt: new Date(Date.now() - idx * 24 * 3600 * 1000).toISOString(),
-        updatedAt: new Date().toISOString(),
-        lastContact: new Date(Date.now() - 12 * 3600 * 1000).toISOString(),
-        m365Synced: true,
-        industry: sl.industry || profile.industry,
-        tags: sl.tags || [profile.industry, 'Customized']
-      }));
-
-      this.leads = formattedLeads;
-      this.saveLeads();
-    }
+    
+    // Don't override existing leads - just adapt the terminology
+    // The actual data stays the same
 
     this.addActivity({
       type: 'status_changed',
