@@ -1,3 +1,4 @@
+// src/lib/sessionStore.ts
 import crypto from 'crypto';
 
 export interface ServerUser {
@@ -43,7 +44,6 @@ export const emailVerificationTokens = new Map<string, { email: string; expiresA
 
 const SECRET_KEY = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const REFRESH_SECRET = process.env.REFRESH_SECRET || crypto.randomBytes(32).toString('hex');
-const RESET_SECRET = process.env.RESET_SECRET || crypto.randomBytes(32).toString('hex');
 
 // Token expiration times (in seconds)
 const SESSION_EXPIRY = 60 * 60 * 24; // 24 hours
@@ -141,7 +141,7 @@ export function deleteUser(email: string): boolean {
   return true;
 }
 
-export function createSessionToken(userEmail: string, ipAddress?: string, userAgent?: string): string {
+export function createSessionToken(userEmail: string): string {
   const expiresAt = Date.now() + SESSION_EXPIRY * 1000;
   const payload = JSON.stringify({
     email: userEmail.toLowerCase(),
@@ -156,9 +156,7 @@ export function createSessionToken(userEmail: string, ipAddress?: string, userAg
   activeSessions.set(token, {
     userEmail: userEmail.toLowerCase(),
     expiresAt,
-    createdAt: Date.now(),
-    ipAddress,
-    userAgent
+    createdAt: Date.now()
   });
 
   return token;
@@ -228,7 +226,6 @@ export function verifyEmailToken(token: string): string | null {
 export function getVerifiedSession(token: string): SessionData | null {
   if (!token) return null;
 
-  // Check in-memory session cache first
   const cached = activeSessions.get(token);
   if (cached) {
     if (Date.now() > cached.expiresAt) {
@@ -238,7 +235,6 @@ export function getVerifiedSession(token: string): SessionData | null {
     return cached;
   }
 
-  // Verify stateless signed token
   if (token.startsWith('tok_v2_')) {
     return verifyToken(token, SECRET_KEY, 'session');
   }
@@ -290,7 +286,6 @@ function verifyToken(token: string, secret: string, expectedType: string): Sessi
       createdAt: Date.now()
     };
 
-    // Store in appropriate cache
     if (expectedType === 'session') {
       activeSessions.set(token, sessionData);
     } else {
@@ -307,13 +302,11 @@ export function refreshSession(refreshToken: string): { sessionToken: string; re
   const verified = verifyRefreshToken(refreshToken);
   if (!verified) return null;
 
-  // Delete old refresh token (one-time use)
   refreshTokens.delete(refreshToken);
 
   const user = findUserByEmail(verified.userEmail);
   if (!user || !user.isActive) return null;
 
-  // Create new tokens
   const newSessionToken = createSessionToken(user.email);
   const newRefreshToken = createRefreshToken(user.email);
 
