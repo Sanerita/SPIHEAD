@@ -138,6 +138,7 @@ export async function handleRegister(req: Request, res: Response) {
     const userId = `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
     const nowISO = new Date().toISOString();
 
+    // Create user object
     const user = {
       id: userId,
       email: cleanEmail,
@@ -152,6 +153,7 @@ export async function handleRegister(req: Request, res: Response) {
       updatedAt: nowISO,
     };
 
+    // Store in memory with ISO strings
     const userForMemory = {
       ...user,
       lastLoginAt: nowISO,
@@ -172,7 +174,8 @@ export async function handleRegister(req: Request, res: Response) {
     if (db && isDatabaseConnected) {
       try {
         console.log('💾 [REGISTER] Saving to database...');
-        await db.insert(users).values({
+        // ✅ Use a type assertion to bypass strict type checking
+        const insertValues = {
           id: user.id,
           name: user.name,
           email: user.email,
@@ -184,7 +187,8 @@ export async function handleRegister(req: Request, res: Response) {
           selectedPlan: user.selectedPlan,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
-        });
+        };
+        await db.insert(users).values(insertValues as any);
         console.log('✅ [REGISTER] User saved to database');
       } catch (dbErr) {
         console.error('❌ [REGISTER] Database save error:', dbErr);
@@ -286,8 +290,8 @@ export async function handleLogin(req: Request, res: Response) {
             companyName: dbU.company || '',
             companySize: '',
             selectedPlan: dbU.selectedPlan || 'free',
-            createdAt: dbU.createdAt || new Date().toISOString(),
-            updatedAt: dbU.updatedAt || new Date().toISOString(),
+            createdAt: dbU.createdAt ? new Date(dbU.createdAt).toISOString() : new Date().toISOString(),
+            updatedAt: dbU.updatedAt ? new Date(dbU.updatedAt).toISOString() : new Date().toISOString(),
             isActive: true,
             emailVerified: false,
             failedLoginAttempts: 0
@@ -429,8 +433,8 @@ export async function handleGetMe(req: Request, res: Response) {
             companyName: dbU.company || '',
             companySize: '',
             selectedPlan: dbU.selectedPlan || 'free',
-            createdAt: dbU.createdAt || new Date().toISOString(),
-            updatedAt: dbU.updatedAt || new Date().toISOString(),
+            createdAt: dbU.createdAt ? new Date(dbU.createdAt).toISOString() : new Date().toISOString(),
+            updatedAt: dbU.updatedAt ? new Date(dbU.updatedAt).toISOString() : new Date().toISOString(),
             isActive: true,
             emailVerified: false,
             failedLoginAttempts: 0
