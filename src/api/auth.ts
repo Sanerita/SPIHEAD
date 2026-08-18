@@ -86,6 +86,8 @@ function getClientInfo(req: Request): { ip: string; userAgent: string } {
 export async function handleRegister(req: Request, res: Response) {
   try {
     console.log('📝 [REGISTER] Request received');
+    console.log('📝 [REGISTER] Body:', JSON.stringify(req.body, null, 2));
+    
     const { fullName, email, password, companyName } = req.body;
 
     if (!email || !email.includes('@')) {
@@ -114,6 +116,7 @@ export async function handleRegister(req: Request, res: Response) {
 
     const existingUser = findUserByEmail(cleanEmail);
     if (existingUser) {
+      console.log('❌ [REGISTER] User already exists in memory');
       return res.status(409).json({
         success: false,
         error: 'An account with this email already exists'
@@ -124,6 +127,7 @@ export async function handleRegister(req: Request, res: Response) {
       try {
         const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
         if (dbUsers.length > 0) {
+          console.log('❌ [REGISTER] User already exists in database');
           return res.status(409).json({
             success: false,
             error: 'An account with this email already exists'
@@ -135,6 +139,8 @@ export async function handleRegister(req: Request, res: Response) {
     }
 
     const passwordHash = hashPassword(password);
+    console.log('🔑 [REGISTER] Password hash created:', passwordHash.substring(0, 20) + '...');
+    
     const userId = `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
     const nowISO = new Date().toISOString();
 
@@ -174,7 +180,6 @@ export async function handleRegister(req: Request, res: Response) {
     if (db && isDatabaseConnected) {
       try {
         console.log('💾 [REGISTER] Saving to database...');
-        // ✅ Use a type assertion to bypass strict type checking
         const insertValues = {
           id: user.id,
           name: user.name,
@@ -210,7 +215,7 @@ export async function handleRegister(req: Request, res: Response) {
 
     const { passwordHash: _, ...publicUser } = userForMemory;
 
-    console.log('✅ [REGISTER] Registration successful');
+    console.log('✅ [REGISTER] Registration successful for:', cleanEmail);
     return res.status(201).json({
       success: true,
       message: 'Account created successfully',
@@ -220,6 +225,7 @@ export async function handleRegister(req: Request, res: Response) {
     });
   } catch (error: any) {
     console.error('❌ [REGISTER] Registration error:', error);
+    console.error('❌ [REGISTER] Stack:', error.stack);
     return res.status(500).json({
       success: false,
       error: error.message || 'Failed to create account'
@@ -233,6 +239,8 @@ export async function handleRegister(req: Request, res: Response) {
 export async function handleLogin(req: Request, res: Response) {
   try {
     console.log('🔐 [LOGIN] Request received');
+    console.log('🔐 [LOGIN] Body:', JSON.stringify(req.body, null, 2));
+    
     const { email, password } = req.body;
 
     if (!email || !email.includes('@')) {
@@ -272,8 +280,12 @@ export async function handleLogin(req: Request, res: Response) {
           updatedAt: users.updatedAt,
         }).from(users).where(eq(users.email, cleanEmail)).limit(1);
         
+        console.log('🔐 [LOGIN] Database result:', dbUsers.length > 0 ? 'User found' : 'User not found');
+        
         if (dbUsers.length > 0) {
           const dbU = dbUsers[0];
+          console.log('🔐 [LOGIN] Database password hash:', dbU.passwordHash ? 'Exists' : 'Missing');
+          
           user = {
             id: dbU.id,
             email: dbU.email.toLowerCase(),
@@ -312,9 +324,15 @@ export async function handleLogin(req: Request, res: Response) {
       });
     }
 
+    console.log('🔐 [LOGIN] Stored password hash:', user.passwordHash ? user.passwordHash.substring(0, 20) + '...' : 'MISSING');
+    console.log('🔐 [LOGIN] Password provided:', password ? '****' : 'MISSING');
+    
     const passwordHash = hashPassword(password);
+    console.log('🔐 [LOGIN] Computed hash:', passwordHash.substring(0, 20) + '...');
+    console.log('🔐 [LOGIN] Hashes match:', passwordHash === user.passwordHash);
+    
     if (passwordHash !== user.passwordHash) {
-      console.log('❌ [LOGIN] Invalid password');
+      console.log('❌ [LOGIN] Invalid password for:', cleanEmail);
       return res.status(401).json({
         success: false,
         error: 'Invalid credentials'
@@ -330,7 +348,7 @@ export async function handleLogin(req: Request, res: Response) {
 
     const { passwordHash: _, ...publicUser } = user;
 
-    console.log('✅ [LOGIN] Login successful:', cleanEmail);
+    console.log('✅ [LOGIN] Login successful for:', cleanEmail);
     return res.json({
       success: true,
       token: sessionToken,
@@ -339,9 +357,129 @@ export async function handleLogin(req: Request, res: Response) {
     });
   } catch (error: any) {
     console.error('❌ [LOGIN] Login error:', error);
+    console.error('❌ [LOGIN] Stack:', error.stack);
     return res.status(500).json({
       success: false,
       error: 'Failed to authenticate'
+    });
+  }
+}
+
+// ============= TEST USER ENDPOINT =============
+
+/**
+ * POST /api/auth/test-create-user - Create a test user for debugging
+ * This endpoint is for development/testing purposes only
+ */
+export async function handleTestCreateUser(req: Request, res: Response) {
+  try {
+    console.log('🧪 [TEST] Creating test user...');
+    const { email, password } = req.body;
+    
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid email is required'
+      });
+    }
+    
+    if (!password || password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 8 characters'
+      });
+    }
+    
+    const cleanEmail = email.trim().toLowerCase();
+    console.log('🧪 [TEST] Email:', cleanEmail);
+    
+    // Check if user already exists
+    const existingUser = findUserByEmail(cleanEmail);
+    if (existingUser) {
+      console.log('🧪 [TEST] User already exists');
+      return res.json({
+        success: true,
+        message: 'User already exists',
+        user: {
+          email: existingUser.email,
+          passwordHash: existingUser.passwordHash ? existingUser.passwordHash.substring(0, 20) + '...' : 'MISSING'
+        }
+      });
+    }
+    
+    // Create test user
+    const passwordHash = hashPassword(password);
+    console.log('🧪 [TEST] Password hash:', passwordHash.substring(0, 20) + '...');
+    
+    const userId = `usr_test_${Date.now()}`;
+    const nowISO = new Date().toISOString();
+    
+    const user = {
+      id: userId,
+      email: cleanEmail,
+      name: 'Test User',
+      passwordHash: passwordHash,
+      role: 'User',
+      company: 'Test Company',
+      jobTitle: 'Test Job',
+      department: 'Test Department',
+      selectedPlan: 'free',
+      createdAt: nowISO,
+      updatedAt: nowISO,
+    };
+    
+    const userForMemory = {
+      ...user,
+      lastLoginAt: nowISO,
+      authRole: 'User',
+      mfaEnabled: false,
+      pinCode: '',
+      ipAddress: req.ip || 'unknown',
+      companySize: '',
+      isActive: true,
+      emailVerified: false,
+      failedLoginAttempts: 0
+    };
+    usersDb.set(cleanEmail, userForMemory);
+    console.log('✅ [TEST] Test user created in memory');
+    
+    // Try to save to database
+    if (db && isDatabaseConnected) {
+      try {
+        await db.insert(users).values({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          company: user.company,
+          passwordHash: user.passwordHash,
+          jobTitle: user.jobTitle,
+          department: user.department,
+          selectedPlan: user.selectedPlan,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        } as any);
+        console.log('✅ [TEST] Test user saved to database');
+      } catch (dbErr) {
+        console.warn('⚠️ [TEST] Database save error (continuing):', dbErr);
+      }
+    }
+    
+    return res.json({
+      success: true,
+      message: 'Test user created successfully',
+      user: {
+        email: cleanEmail,
+        password: password,
+        passwordHash: passwordHash,
+        hashPrefix: passwordHash.substring(0, 20) + '...'
+      }
+    });
+  } catch (error: any) {
+    console.error('❌ [TEST] Test user error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to create test user'
     });
   }
 }
@@ -656,6 +794,7 @@ export async function handleVerifyEmail(req: Request, res: Response) {
 router.post('/register', handleRegister);
 router.post('/signup', handleSignup);
 router.post('/login', handleLogin);
+router.post('/test-create-user', handleTestCreateUser); // ✅ Added test endpoint
 router.post('/logout', handleLogout);
 router.get('/me', handleGetMe);
 router.post('/me', handleGetMe);
@@ -718,7 +857,7 @@ router.post('/oauth/callback/microsoft', handleProviderOAuthFlow);
 // Wildcard routes - must come last
 router.get('/:provider', (req, res, next) => {
   const p = req.params.provider;
-  if (['register', 'signup', 'login', 'logout', 'me', 'refresh', 'forgot-password', 'reset-password', 'verify-email', 'oauth'].includes(p)) {
+  if (['register', 'signup', 'login', 'logout', 'me', 'refresh', 'forgot-password', 'reset-password', 'verify-email', 'oauth', 'test-create-user'].includes(p)) {
     return next('route');
   }
   return handleProviderOAuthFlow(req, res);
