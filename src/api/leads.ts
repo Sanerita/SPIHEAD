@@ -20,15 +20,17 @@ function mapDbLeadToMemory(dbLead: any): any {
 router.get('/', async (req: Request, res: Response) => {
   try {
     console.log('📊 [LEADS] Fetching all leads...');
-    
+    console.log('📊 [LEADS] Database connected:', isDatabaseConnected);
+
     // Try database first
     if (db && isDatabaseConnected) {
       try {
         const dbLeads = await db.select().from(leads);
         console.log(`📊 [LEADS] Found ${dbLeads.length} leads in database`);
-        
+
+        // Convert dates to strings for JSON response
         const formattedLeads = dbLeads.map(mapDbLeadToMemory);
-        
+
         return res.json({
           success: true,
           leads: formattedLeads,
@@ -71,6 +73,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       });
     }
 
+    // Try database first
     if (db && isDatabaseConnected) {
       try {
         const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
@@ -83,6 +86,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       }
     }
 
+    // Fallback to memory
     const memLead = memoryLeads.get(id);
     if (memLead) {
       return res.json({ success: true, lead: memLead });
