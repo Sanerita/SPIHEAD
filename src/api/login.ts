@@ -1,13 +1,15 @@
 import { Router, Request, Response } from 'express';
 import { handleLogin } from './auth.js';
 
-export { handleLogin };
-
 const router = Router();
+
 router.post('/', handleLogin);
 router.post('/login', handleLogin);
-router.get(['/', '/login'], (req: Request, res: Response) => {
-  return res.json({ success: true, message: 'SPIHEAD Authentication Login API endpoint active. Use POST to sign in.' });
+router.get('/', (req: Request, res: Response) => {
+  return res.json({
+    success: true,
+    message: 'Login API endpoint. Use POST to authenticate.'
+  });
 });
 
 export default router;
