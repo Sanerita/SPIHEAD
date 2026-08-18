@@ -9,7 +9,12 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL!,
   },
-  tablesFilter: ['!pg_catalog.*', '!information_schema.*'],
+  // ✅ Ignore system tables and the test table
+  tablesFilter: [
+    '!pg_catalog.*', 
+    '!information_schema.*',
+    '!playing_with_neon', // ✅ Ignore the Neon test table
+  ],
   introspect: {
     casing: 'camel',
   },
@@ -18,4 +23,8 @@ export default defineConfig({
     table: 'migrations',
     schema: 'public',
   },
+  // ✅ Optional: Be more strict about schema changes
+  strict: true,
+  // ✅ Optional: Verbose output for debugging
+  verbose: true,
 });
