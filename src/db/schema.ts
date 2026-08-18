@@ -2,29 +2,31 @@
 import { pgTable, text, timestamp, integer, boolean, jsonb, uniqueIndex } from 'drizzle-orm/pg-core';
 
 // ============================================
-// USERS TABLE
+// USERS TABLE - MATCHES ACTUAL DATABASE
 // ============================================
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   role: text('role').notNull().default('User'),
-  authRole: text('auth_role').default('User'),
+  // ❌ REMOVED - Column doesn't exist in database
+  // authRole: text('auth_role').default('User'),
   company: text('company'),
   passwordHash: text('password_hash'),
   jobTitle: text('job_title'),
   department: text('department'),
   selectedPlan: text('selected_plan').default('free'),
-  companySize: text('company_size'),
-  ipAddress: text('ip_address'),
-  mfaEnabled: boolean('mfa_enabled').default(false),
-  pinCode: text('pin_code'),
-  lastLoginAt: timestamp('last_login_at'),
-  isActive: boolean('is_active').default(true),
-  emailVerified: boolean('email_verified').default(false),
-  failedLoginAttempts: integer('failed_login_attempts').default(0),
-  lockedUntil: timestamp('locked_until'),
-  lastPasswordChange: timestamp('last_password_change'),
+  // ❌ REMOVED - These columns don't exist in your database
+  // companySize: text('company_size'),
+  // ipAddress: text('ip_address'),
+  // mfaEnabled: boolean('mfa_enabled').default(false),
+  // pinCode: text('pin_code'),
+  // lastLoginAt: timestamp('last_login_at'),
+  // isActive: boolean('is_active').default(true),
+  // emailVerified: boolean('email_verified').default(false),
+  // failedLoginAttempts: integer('failed_login_attempts').default(0),
+  // lockedUntil: timestamp('locked_until'),
+  // lastPasswordChange: timestamp('last_password_change'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
@@ -32,7 +34,7 @@ export const users = pgTable('users', {
 }));
 
 // ============================================
-// LEADS TABLE - MATCHES ACTUAL DATABASE SCHEMA
+// LEADS TABLE - MATCHES ACTUAL DATABASE
 // ============================================
 export const leads = pgTable('leads', {
   id: text('id').primaryKey(),
@@ -49,10 +51,9 @@ export const leads = pgTable('leads', {
   replyCount: integer('reply_count').default(0),
   notes: text('notes'),
   industry: text('industry'),
-  tags: text('tags'), // ✅ Changed to text to match actual database
-  // ✅ REMOVED - These columns don't exist in your database
-  // m365Synced: boolean('m365_synced').default(false),
-  // lastContactedAt: timestamp('last_contacted_at'),
+  tags: text('tags'),
+  m365Synced: boolean('m365_synced').default(false),
+  lastContactedAt: timestamp('last_contacted_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
