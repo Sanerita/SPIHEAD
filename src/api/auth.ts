@@ -3,12 +3,33 @@ import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
-import { usersDb, activeSessions, ServerUser, createSessionToken, getVerifiedSession } from './sessionStore.js';
+import {
+  usersDb,
+  activeSessions,
+  ServerUser,
+  createSessionToken,
+  createRefreshToken,
+  getVerifiedSession,
+  createPasswordResetToken,
+  verifyPasswordResetToken,
+  consumePasswordResetToken,
+  createEmailVerificationToken,
+  verifyEmailToken,
+  updateUser,
+  findUserByEmail,
+  hashPassword,
+  verifyPassword,
+  revokeSession,
+  revokeAllUserSessions,
+  refreshSession
+} from './sessionStore.js';
 import { handleProviderOAuthFlow } from './auth/[provider].js';
+import { sendEmail } from '../lib/emailService.js';
 
 const router = Router();
 
-// Helper function to create a ServerUser from database data
+// ============= HELPERS =============
+
 function mapDbUserToServerUser(dbU: any, req?: Request): ServerUser {
   const now = new Date().toISOString();
   return {
@@ -30,286 +51,332 @@ function mapDbUserToServerUser(dbU: any, req?: Request): ServerUser {
     createdAt: dbU.createdAt || now,
     updatedAt: dbU.updatedAt || now,
     isActive: dbU.isActive !== undefined ? dbU.isActive : true,
-    emailVerified: dbU.emailVerified || false
+    emailVerified: dbU.emailVerified || false,
+    failedLoginAttempts: dbU.failedLoginAttempts || 0
   };
 }
 
-// Helper to create new user with only provided data
-function createNewUser(userData: {
-  email: string;
-  name: string;
-  passwordHash: string;
-  role?: string;
-  companyName?: string;
-  ipAddress?: string;
-}): ServerUser {
-  const now = new Date().toISOString();
+function extractToken(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.split(' ')[1];
+  }
+  if (req.query && typeof req.query.token === 'string') {
+    return req.query.token;
+  }
+  if (req.body && typeof req.body.token === 'string') {
+    return req.body.token;
+  }
+  return null;
+}
+
+function getClientInfo(req: Request): { ip: string; userAgent: string } {
   return {
-    id: `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`,
-    email: userData.email.toLowerCase(),
-    name: userData.name,
-    passwordHash: userData.passwordHash,
-    role: userData.role || 'User',
-    authRole: userData.role || 'User',
-    mfaEnabled: false,
-    pinCode: '',
-    lastLoginAt: now,
-    jobTitle: '',
-    department: '',
-    ipAddress: userData.ipAddress || 'unknown',
-    companyName: userData.companyName || '',
-    companySize: '',
-    selectedPlan: 'free',
-    createdAt: now,
-    updatedAt: now,
-    isActive: true,
-    emailVerified: false
+    ip: req.ip || req.headers['x-forwarded-for']?.toString() || 'unknown',
+    userAgent: req.headers['user-agent'] || 'unknown'
   };
 }
+
+// ============= AUTH HANDLERS =============
 
 /**
- * Handles POST /api/auth/login
+ * POST /api/auth/register - Create new account
  */
-export async function handleLogin(req: Request, res: Response) {
-  if (res.headersSent) return;
+export async function handleRegister(req: Request, res: Response) {
   try {
-    const { email, password } = req.body || {};
+    const { fullName, email, password, companyName } = req.body;
 
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
-      return res.status(400).json({ success: false, error: 'Please enter a valid email address.' });
+    // Validate required fields
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Valid email address is required' 
+      });
     }
 
-    if (!password || typeof password !== 'string' || !password.trim()) {
-      return res.status(400).json({ success: false, error: 'Password is required to sign in.' });
+    if (!password || password.length < 8) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Password must be at least 8 characters' 
+      });
+    }
+
+    if (!fullName || fullName.trim().length < 2) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Full name is required' 
+      });
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    let user = usersDb.get(cleanEmail);
 
-    // Query database if not in cache
+    // Check existing user
+    const existingUser = findUserByEmail(cleanEmail);
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        error: 'An account with this email already exists'
+      });
+    }
+
+    // Create user
+    const newUser = {
+      email: cleanEmail,
+      name: fullName.trim(),
+      password,
+      role: 'User',
+      companyName: companyName?.trim() || '',
+      ipAddress: req.ip || 'unknown'
+    };
+
+    const user = {
+      id: `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`,
+      ...newUser,
+      passwordHash: hashPassword(newUser.password),
+      authRole: 'User',
+      mfaEnabled: false,
+      pinCode: '',
+      lastLoginAt: new Date().toISOString(),
+      jobTitle: '',
+      department: '',
+      companySize: '',
+      selectedPlan: 'free',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isActive: true,
+      emailVerified: false,
+      failedLoginAttempts: 0
+    };
+
+    usersDb.set(cleanEmail, user);
+
+    // Save to database
+    if (db) {
+      try {
+        await db.insert(users).values({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          company: user.companyName,
+          passwordHash: user.passwordHash,
+          jobTitle: user.jobTitle,
+          department: user.department,
+          selectedPlan: user.selectedPlan,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          isActive: user.isActive,
+          emailVerified: user.emailVerified,
+          ipAddress: user.ipAddress
+        });
+      } catch (dbErr) {
+        console.error('Database save error:', dbErr);
+        usersDb.delete(cleanEmail);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to create account'
+        });
+      }
+    }
+
+    // Generate verification token
+    const verifyToken = createEmailVerificationToken(cleanEmail);
+    
+    // Send verification email
+    try {
+      await sendEmail({
+        to: cleanEmail,
+        subject: 'Verify Your Email Address',
+        html: `
+          <h1>Welcome to SPIHEAD</h1>
+          <p>Please verify your email address by clicking the link below:</p>
+          <a href="${process.env.APP_URL}/verify?token=${verifyToken}">Verify Email</a>
+          <p>This link expires in 7 days.</p>
+        `
+      });
+    } catch (emailErr) {
+      console.warn('Email send failed:', emailErr);
+    }
+
+    // Create session
+    const clientInfo = getClientInfo(req);
+    const sessionToken = createSessionToken(cleanEmail, clientInfo.ip, clientInfo.userAgent);
+    const refreshToken = createRefreshToken(cleanEmail);
+
+    const { passwordHash: _, ...publicUser } = user;
+
+    return res.status(201).json({
+      success: true,
+      message: 'Account created successfully. Please check your email to verify your account.',
+      token: sessionToken,
+      refreshToken,
+      user: publicUser
+    });
+  } catch (error: any) {
+    console.error('Registration error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to create account'
+    });
+  }
+}
+
+/**
+ * POST /api/auth/login - Authenticate user
+ */
+export async function handleLogin(req: Request, res: Response) {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid email address is required'
+      });
+    }
+
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password is required'
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    let user = findUserByEmail(cleanEmail);
+
+    // Check database if not in memory
     if (!user && db) {
       try {
-        const dbResult = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
-        if (dbResult && dbResult.length > 0) {
-          user = mapDbUserToServerUser(dbResult[0], req);
+        const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
+        if (dbUsers.length > 0) {
+          user = mapDbUserToServerUser(dbUsers[0], req);
           usersDb.set(cleanEmail, user);
         }
       } catch (dbErr) {
-        console.warn('DB user query error during login:', dbErr);
-        return res.status(500).json({ success: false, error: 'Database error occurred.' });
+        console.warn('Database lookup error:', dbErr);
       }
     }
 
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        error: 'No account found with this email. Please sign up first.' 
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+
+    // Check if account is locked
+    if (user.lockedUntil && Date.now() < new Date(user.lockedUntil).getTime()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Account is temporarily locked. Please try again later.'
       });
     }
 
     // Check if account is active
     if (!user.isActive) {
-      return res.status(403).json({ 
-        success: false, 
-        error: 'Account has been deactivated. Please contact support.' 
-      });
-    }
-
-    // Validate password
-    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-    if (user.passwordHash && passwordHash !== user.passwordHash) {
-      return res.status(401).json({ success: false, error: 'Incorrect password.' });
-    }
-
-    // Update last login
-    user.lastLoginAt = new Date().toISOString();
-    user.updatedAt = new Date().toISOString();
-    user.ipAddress = req.ip || user.ipAddress || 'unknown';
-    usersDb.set(cleanEmail, user);
-
-    // Update database
-    if (db) {
-      try {
-        await db.update(users)
-          .set({ 
-            lastLoginAt: user.lastLoginAt,
-            updatedAt: user.updatedAt,
-            ipAddress: user.ipAddress
-          })
-          .where(eq(users.email, cleanEmail));
-      } catch (dbErr) {
-        console.warn('Failed to update last login:', dbErr);
-      }
-    }
-
-    // Create session token
-    const token = createSessionToken(cleanEmail);
-
-    const { passwordHash: _, ...publicProfile } = user;
-
-    return res.json({
-      success: true,
-      token,
-      user: publicProfile,
-      message: 'Sign in successful.'
-    });
-  } catch (err: any) {
-    console.error('Error in login endpoint:', err);
-    return res.status(500).json({ 
-      success: false, 
-      error: err?.message || 'Internal server error during authentication.' 
-    });
-  }
-}
-
-/**
- * Handles POST /api/auth/signup
- */
-export async function handleSignup(req: Request, res: Response) {
-  if (res.headersSent) return;
-  try {
-    const { fullName, email, password, companyName } = req.body || {};
-
-    // Validate required fields
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'A valid email address is required.' 
-      });
-    }
-
-    if (!password || typeof password !== 'string' || password.length < 8) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Password must be at least 8 characters long.' 
-      });
-    }
-
-    if (!fullName || typeof fullName !== 'string' || fullName.trim().length < 2) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Full name is required.' 
-      });
-    }
-
-    const cleanEmail = email.trim().toLowerCase();
-
-    // Check for existing user
-    if (db) {
-      try {
-        const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
-        if (dbUsers && dbUsers.length > 0) {
-          return res.status(400).json({
-            success: false,
-            error: `An account with ${cleanEmail} already exists. Please sign in.`
-          });
-        }
-      } catch (err) {
-        console.warn('Database check error during signup:', err);
-        return res.status(500).json({ 
-          success: false, 
-          error: 'Error checking existing account.' 
-        });
-      }
-    }
-
-    if (usersDb.has(cleanEmail)) {
-      return res.status(400).json({
+      return res.status(403).json({
         success: false,
-        error: `An account with ${cleanEmail} already exists. Please sign in.`
+        error: 'Account has been deactivated. Please contact support.'
       });
     }
 
-    // Create new user
-    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-    const newUser = createNewUser({
-      email: cleanEmail,
-      name: fullName.trim(),
-      passwordHash,
-      companyName: companyName?.trim() || '',
-      ipAddress: req.ip || 'unknown'
-    });
-
-    // Store in memory
-    usersDb.set(cleanEmail, newUser);
-
-    // Persist to database
-    if (db) {
-      try {
-        await db.insert(users).values({
-          id: newUser.id,
-          name: newUser.name,
-          email: newUser.email,
-          role: newUser.role,
-          company: newUser.companyName,
-          passwordHash: newUser.passwordHash,
-          jobTitle: newUser.jobTitle,
-          department: newUser.department,
-          selectedPlan: newUser.selectedPlan,
-          createdAt: newUser.createdAt,
-          updatedAt: newUser.updatedAt,
-          isActive: newUser.isActive,
-          emailVerified: newUser.emailVerified,
-          ipAddress: newUser.ipAddress
-        });
-      } catch (dbErr) {
-        console.error('Failed to persist user to database:', dbErr);
-        // Remove from memory if database fails
-        usersDb.delete(cleanEmail);
-        return res.status(500).json({ 
-          success: false, 
-          error: 'Failed to create account. Please try again.' 
-        });
+    // Verify password
+    if (!verifyPassword(password, user.passwordHash)) {
+      // Increment failed login attempts
+      const failedAttempts = (user.failedLoginAttempts || 0) + 1;
+      const updates: any = { failedLoginAttempts: failedAttempts };
+      
+      // Lock account after 5 failed attempts
+      if (failedAttempts >= 5) {
+        updates.lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
       }
+      
+      updateUser(cleanEmail, updates);
+      
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials',
+        remainingAttempts: 5 - failedAttempts
+      });
     }
 
-    // Create session token
-    const token = createSessionToken(cleanEmail);
+    // Reset failed login attempts on success
+    const clientInfo = getClientInfo(req);
+    updateUser(cleanEmail, {
+      failedLoginAttempts: 0,
+      lockedUntil: undefined,
+      lastLoginAt: new Date().toISOString(),
+      ipAddress: clientInfo.ip
+    });
 
-    const { passwordHash: _, ...publicProfile } = newUser;
+    // Create session
+    const sessionToken = createSessionToken(cleanEmail, clientInfo.ip, clientInfo.userAgent);
+    const refreshToken = createRefreshToken(cleanEmail);
+
+    const { passwordHash: _, ...publicUser } = user;
 
     return res.json({
       success: true,
-      token,
-      user: publicProfile,
-      message: 'Account created successfully.'
+      token: sessionToken,
+      refreshToken,
+      user: publicUser
     });
-  } catch (err: any) {
-    console.error('Error in signup endpoint:', err);
-    return res.status(500).json({ 
-      success: false, 
-      error: err?.message || 'Internal server error during registration.' 
+  } catch (error: any) {
+    console.error('Login error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to authenticate'
     });
   }
 }
 
 /**
- * Handles GET /api/auth/me
+ * POST /api/auth/logout - End session
+ */
+export async function handleLogout(req: Request, res: Response) {
+  try {
+    const token = extractToken(req);
+    if (token) {
+      revokeSession(token);
+    }
+    return res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error: any) {
+    console.error('Logout error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to logout'
+    });
+  }
+}
+
+/**
+ * GET /api/auth/me - Get current user
  */
 export async function handleGetMe(req: Request, res: Response) {
   try {
     const token = extractToken(req);
-    
     if (!token) {
-      return res.status(401).json({ 
-        success: false, 
-        isAuthenticated: false, 
-        error: 'No token provided.' 
+      return res.status(401).json({
+        success: false,
+        isAuthenticated: false,
+        error: 'No token provided'
       });
     }
 
     const session = getVerifiedSession(token);
     if (!session) {
-      activeSessions.delete(token);
-      return res.status(401).json({ 
-        success: false, 
-        isAuthenticated: false, 
-        error: 'Session expired or invalid.' 
+      return res.status(401).json({
+        success: false,
+        isAuthenticated: false,
+        error: 'Session expired or invalid'
       });
     }
 
-    let user = usersDb.get(session.userEmail);
-    
+    let user = findUserByEmail(session.userEmail);
     if (!user && db) {
       try {
         const dbUsers = await db.select().from(users).where(eq(users.email, session.userEmail)).limit(1);
@@ -318,206 +385,310 @@ export async function handleGetMe(req: Request, res: Response) {
           usersDb.set(session.userEmail, user);
         }
       } catch (dbErr) {
-        console.warn('DB user lookup error in /api/auth/me:', dbErr);
-        return res.status(500).json({ 
-          success: false, 
-          isAuthenticated: false, 
-          error: 'Database error occurred.' 
-        });
+        console.warn('Database lookup error:', dbErr);
       }
     }
 
-    if (!user) {
-      return res.status(404).json({ 
-        success: false, 
-        isAuthenticated: false, 
-        error: 'User account not found.' 
+    if (!user || !user.isActive) {
+      return res.status(404).json({
+        success: false,
+        isAuthenticated: false,
+        error: 'User not found'
       });
     }
 
-    if (!user.isActive) {
-      return res.status(403).json({ 
-        success: false, 
-        isAuthenticated: false, 
-        error: 'Account is deactivated.' 
-      });
-    }
-
-    const { passwordHash: _, ...publicProfile } = user;
-    return res.json({ 
-      success: true, 
-      isAuthenticated: true, 
-      user: publicProfile 
+    const { passwordHash: _, ...publicUser } = user;
+    return res.json({
+      success: true,
+      isAuthenticated: true,
+      user: publicUser
     });
-  } catch (err: any) {
-    console.error('Error in /me endpoint:', err);
-    return res.status(500).json({ 
-      success: false, 
-      isAuthenticated: false, 
-      error: 'Failed to authenticate session.' 
+  } catch (error: any) {
+    console.error('Get me error:', error);
+    return res.status(500).json({
+      success: false,
+      isAuthenticated: false,
+      error: 'Failed to get user'
     });
   }
 }
 
 /**
- * Handles POST /api/auth/logout
+ * POST /api/auth/refresh - Refresh session token
  */
-export async function handleLogout(req: Request, res: Response) {
+export async function handleRefresh(req: Request, res: Response) {
   try {
-    const token = extractToken(req);
-    if (token) {
-      activeSessions.delete(token);
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'Refresh token required'
+      });
     }
-    return res.json({ success: true, message: 'Logged out successfully.' });
-  } catch (err: any) {
-    console.error('Logout error:', err);
-    return res.status(500).json({ success: false, error: 'Logout failed.' });
+
+    const result = refreshSession(refreshToken);
+    if (!result) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid or expired refresh token'
+      });
+    }
+
+    return res.json({
+      success: true,
+      token: result.sessionToken,
+      refreshToken: result.refreshToken
+    });
+  } catch (error: any) {
+    console.error('Refresh error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to refresh token'
+    });
   }
 }
 
 /**
- * Helper to extract token from request
+ * POST /api/auth/forgot-password - Request password reset
  */
-function extractToken(req: Request): string {
-  const authHeader = req.headers.authorization;
-  if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-    return authHeader.split(' ')[1];
+export async function handleForgotPassword(req: Request, res: Response) {
+  try {
+    const { email } = req.body;
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid email address is required'
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const user = findUserByEmail(cleanEmail);
+    
+    // Always return success to prevent email enumeration
+    if (!user) {
+      return res.json({
+        success: true,
+        message: 'If an account exists, a reset link will be sent'
+      });
+    }
+
+    const resetToken = createPasswordResetToken(cleanEmail);
+    
+    // Send reset email
+    try {
+      await sendEmail({
+        to: cleanEmail,
+        subject: 'Reset Your Password',
+        html: `
+          <h1>Password Reset Request</h1>
+          <p>Click the link below to reset your password:</p>
+          <a href="${process.env.APP_URL}/reset-password?token=${resetToken}">Reset Password</a>
+          <p>This link expires in 1 hour.</p>
+          <p>If you didn't request this, please ignore this email.</p>
+        `
+      });
+    } catch (emailErr) {
+      console.warn('Email send failed:', emailErr);
+    }
+
+    return res.json({
+      success: true,
+      message: 'If an account exists, a reset link will be sent'
+    });
+  } catch (error: any) {
+    console.error('Forgot password error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to process request'
+    });
   }
-  
-  if (req.query && typeof req.query.token === 'string') {
-    return req.query.token;
+}
+
+/**
+ * POST /api/auth/reset-password - Reset password
+ */
+export async function handleResetPassword(req: Request, res: Response) {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword || newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        error: 'Token and password (min 8 chars) are required'
+      });
+    }
+
+    const email = verifyPasswordResetToken(token);
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired reset token'
+      });
+    }
+
+    const user = findUserByEmail(email);
+    if (!user || !user.isActive) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    // Update password
+    const newHash = hashPassword(newPassword);
+    updateUser(email, {
+      passwordHash: newHash,
+      lastPasswordChange: new Date().toISOString(),
+      failedLoginAttempts: 0
+    });
+
+    consumePasswordResetToken(token);
+
+    // Revoke all sessions
+    revokeAllUserSessions(email);
+
+    return res.json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+  } catch (error: any) {
+    console.error('Reset password error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to reset password'
+    });
   }
-  
-  if (req.body && typeof req.body.token === 'string') {
-    return req.body.token;
+}
+
+/**
+ * GET /api/auth/verify-email - Verify email address
+ */
+export async function handleVerifyEmail(req: Request, res: Response) {
+  try {
+    const { token } = req.query;
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Verification token required'
+      });
+    }
+
+    const email = verifyEmailToken(token);
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid or expired verification token'
+      });
+    }
+
+    const user = findUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    if (user.emailVerified) {
+      return res.json({
+        success: true,
+        message: 'Email already verified'
+      });
+    }
+
+    updateUser(email, { emailVerified: true });
+
+    return res.json({
+      success: true,
+      message: 'Email verified successfully'
+    });
+  } catch (error: any) {
+    console.error('Verify email error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to verify email'
+    });
   }
-  
-  return '';
 }
 
 // ============= ROUTE REGISTRATION =============
 
-// 1. Sign Up
-router.post('/signup', handleSignup);
-router.post('/signup/', handleSignup);
-router.get('/signup', (req: Request, res: Response) => {
-  return res.json({ success: true, message: 'Signup API endpoint. Use POST to register.' });
-});
-
-// 2. Login
+router.post('/register', handleRegister);
 router.post('/login', handleLogin);
-router.post('/login/', handleLogin);
-router.get('/login', (req: Request, res: Response) => {
-  return res.json({ success: true, message: 'Login API endpoint. Use POST to sign in.' });
-});
-
-// 3. Current User
-router.get('/me', handleGetMe);
-router.get('/me/', handleGetMe);
-router.post('/me', handleGetMe);
-router.post('/me/', handleGetMe);
-
-// 4. Logout
 router.post('/logout', handleLogout);
-router.post('/logout/', handleLogout);
+router.get('/me', handleGetMe);
+router.post('/me', handleGetMe);
+router.post('/refresh', handleRefresh);
+router.post('/forgot-password', handleForgotPassword);
+router.post('/reset-password', handleResetPassword);
+router.get('/verify-email', handleVerifyEmail);
 
-// 5. OAuth URL
+// OAuth URL endpoint
 router.get('/oauth/url', (req: Request, res: Response) => {
   try {
     const provider = (req.query.provider as string || 'microsoft').toLowerCase();
     const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
 
     if (provider === 'google') {
-      const clientId = process.env.GOOGLE_CLIENT_ID || 'demo-google-client-id.apps.googleusercontent.com';
+      const clientId = process.env.GOOGLE_CLIENT_ID;
       const redirectUri = `${appUrl}/api/auth/oauth/callback/google`;
+      
       const googleScopes = [
         'openid',
         'profile',
-        'email',
-        'https://www.googleapis.com/auth/gmail.modify',
-        'https://www.googleapis.com/auth/calendar',
-        'https://www.googleapis.com/auth/contacts.readonly'
+        'email'
       ];
+      
       const params = new URLSearchParams({
-        client_id: clientId,
+        client_id: clientId || 'demo-client-id',
         redirect_uri: redirectUri,
         response_type: 'code',
         scope: googleScopes.join(' '),
-        access_type: 'offline',
-        prompt: 'consent'
+        access_type: 'online'
       });
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
-      return res.json({ success: true, url: authUrl, provider: 'Google Workspace' });
+      return res.json({ success: true, url: authUrl, provider: 'Google' });
     } else {
-      const clientId = process.env.MICROSOFT_CLIENT_ID || 'demo-m365-client-id';
+      const clientId = process.env.MICROSOFT_CLIENT_ID;
       const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
       const redirectUri = `${appUrl}/api/auth/oauth/callback/microsoft`;
       const m365Scopes = [
         'openid',
         'profile',
         'email',
-        'offline_access',
-        'User.Read',
-        'Mail.ReadWrite',
-        'Mail.Send',
-        'Calendars.ReadWrite',
-        'Contacts.Read',
-        'Contacts.ReadWrite',
-        'OnlineMeetings.ReadWrite'
+        'User.Read'
       ];
       const params = new URLSearchParams({
-        client_id: clientId,
+        client_id: clientId || 'demo-client-id',
         redirect_uri: redirectUri,
         response_type: 'code',
         scope: m365Scopes.join(' '),
         response_mode: 'query'
       });
       const authUrl = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params}`;
-      return res.json({ success: true, url: authUrl, provider: 'Microsoft 365' });
+      return res.json({ success: true, url: authUrl, provider: 'Microsoft' });
     }
-  } catch (err: any) {
-    console.error('OAuth URL error:', err);
-    return res.status(500).json({ success: false, error: 'Failed to generate OAuth URL.' });
+  } catch (error: any) {
+    console.error('OAuth URL error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to generate OAuth URL'
+    });
   }
 });
-router.get('/oauth/url/', (req: Request, res: Response) => {
-  return res.redirect('/api/auth/oauth/url' + (req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''));
-});
 
-// 6. OAuth Callbacks - Must be registered BEFORE wildcard route
+// OAuth Callbacks
 router.get('/oauth/callback/google', handleProviderOAuthFlow);
-router.get('/oauth/callback/google/', handleProviderOAuthFlow);
-router.post('/oauth/callback/google', handleProviderOAuthFlow);
 router.get('/oauth/callback/microsoft', handleProviderOAuthFlow);
-router.get('/oauth/callback/microsoft/', handleProviderOAuthFlow);
+router.post('/oauth/callback/google', handleProviderOAuthFlow);
 router.post('/oauth/callback/microsoft', handleProviderOAuthFlow);
 
-// 7. OAuth Provider routes (wildcard) - Must come LAST
+// Wildcard routes
 router.get('/:provider', (req, res, next) => {
   const p = req.params.provider;
-  if (['signup', 'login', 'me', 'logout', 'oauth'].includes(p)) {
+  if (['register', 'login', 'logout', 'me', 'refresh', 'forgot-password', 'reset-password', 'verify-email', 'oauth'].includes(p)) {
     return next('route');
   }
   return handleProviderOAuthFlow(req, res);
-});
-router.post('/:provider', (req, res, next) => {
-  const p = req.params.provider;
-  if (['signup', 'login', 'me', 'logout', 'oauth'].includes(p)) {
-    return next('route');
-  }
-  return handleProviderOAuthFlow(req, res);
-});
-
-// 8. OAuth Callback wildcard - Must come LAST
-router.get('/callback/:provider', handleProviderOAuthFlow);
-router.post('/callback/:provider', handleProviderOAuthFlow);
-
-// 9. Deprecated SSO endpoint
-router.post('/oauth/sso', async (req: Request, res: Response) => {
-  return res.status(410).json({
-    success: false,
-    error: 'This endpoint has been disabled. Please use the real OAuth sign-in.',
-  });
 });
 
 export default router;
