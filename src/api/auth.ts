@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
-import { db } from '../db/index.js';
+import { db, isDatabaseConnected } from '../db/index.js';
 import { users } from '../db/schema.js';
 import {
   usersDb,
@@ -24,7 +24,7 @@ import {
   refreshSession
 } from './sessionStore.js';
 import { handleProviderOAuthFlow } from './auth/[provider].js';
-import { sendEmail, sendVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail } from '../lib/emailService.js';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../lib/emailService.js';
 
 const router = Router();
 
@@ -41,15 +41,15 @@ function mapDbUserToServerUser(dbU: any, req?: Request): ServerUser {
     authRole: dbU.authRole || dbU.role || 'User',
     mfaEnabled: dbU.mfaEnabled || false,
     pinCode: dbU.pinCode || '',
-    lastLoginAt: dbU.lastLoginAt || now,
+    lastLoginAt: dbU.lastLoginAt ? new Date(dbU.lastLoginAt).toISOString() : now,
     jobTitle: dbU.jobTitle || '',
     department: dbU.department || '',
     ipAddress: req?.ip || dbU.ipAddress || 'unknown',
     companyName: dbU.companyName || dbU.company || '',
     companySize: dbU.companySize || '',
     selectedPlan: dbU.selectedPlan || 'free',
-    createdAt: dbU.createdAt || now,
-    updatedAt: dbU.updatedAt || now,
+    createdAt: dbU.createdAt ? new Date(dbU.createdAt).toISOString() : now,
+    updatedAt: dbU.updatedAt ? new Date(dbU.updatedAt).toISOString() : now,
     isActive: dbU.isActive !== undefined ? dbU.isActive : true,
     emailVerified: dbU.emailVerified || false,
     failedLoginAttempts: dbU.failedLoginAttempts || 0
@@ -84,6 +84,7 @@ function getClientInfo(req: Request): { ip: string; userAgent: string } {
  */
 export async function handleRegister(req: Request, res: Response) {
   try {
+    console.log('📝 [REGISTER] Request received');
     const { fullName, email, password, companyName } = req.body;
 
     // Validate required fields
@@ -109,6 +110,7 @@ export async function handleRegister(req: Request, res: Response) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    console.log(`📧 [REGISTER] Creating user: ${cleanEmail}`);
 
     // Check existing user
     const existingUser = findUserByEmail(cleanEmail);
@@ -119,74 +121,92 @@ export async function handleRegister(req: Request, res: Response) {
       });
     }
 
-    // Create user
-    const newUser = {
+    // Hash password
+    const passwordHash = hashPassword(password);
+    const userId = `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+    const now = new Date(); // ✅ Date object for database
+    const nowISO = now.toISOString(); // ✅ String for JSON
+
+    // Create user object
+    const user = {
+      id: userId,
       email: cleanEmail,
       name: fullName.trim(),
-      password,
+      passwordHash: passwordHash,
       role: 'User',
-      companyName: companyName?.trim() || '',
-      ipAddress: req.ip || 'unknown'
-    };
-
-    const user = {
-      id: `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`,
-      ...newUser,
-      passwordHash: hashPassword(newUser.password),
       authRole: 'User',
       mfaEnabled: false,
       pinCode: '',
-      lastLoginAt: new Date().toISOString(),
+      lastLoginAt: now, // ✅ Date object for database
       jobTitle: '',
       department: '',
+      ipAddress: req.ip || 'unknown',
+      companyName: companyName?.trim() || '',
       companySize: '',
       selectedPlan: 'free',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now, // ✅ Date object for database
+      updatedAt: now, // ✅ Date object for database
       isActive: true,
       emailVerified: false,
       failedLoginAttempts: 0
     };
 
-    usersDb.set(cleanEmail, user);
+    // Store in memory with ISO strings
+    const userForMemory = {
+      ...user,
+      lastLoginAt: nowISO,
+      createdAt: nowISO,
+      updatedAt: nowISO,
+    };
+    usersDb.set(cleanEmail, userForMemory);
 
     // Save to database
-    if (db) {
+    if (db && isDatabaseConnected) {
       try {
+        console.log('💾 [REGISTER] Saving to database...');
         await db.insert(users).values({
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
+          authRole: user.authRole,
           company: user.companyName,
           passwordHash: user.passwordHash,
           jobTitle: user.jobTitle,
           department: user.department,
           selectedPlan: user.selectedPlan,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
+          companySize: user.companySize,
+          ipAddress: user.ipAddress,
+          mfaEnabled: user.mfaEnabled,
+          pinCode: user.pinCode,
+          lastLoginAt: user.lastLoginAt, // ✅ Date object
           isActive: user.isActive,
           emailVerified: user.emailVerified,
-          ipAddress: user.ipAddress
+          failedLoginAttempts: user.failedLoginAttempts,
+          createdAt: user.createdAt, // ✅ Date object
+          updatedAt: user.updatedAt, // ✅ Date object
         });
+        console.log('✅ [REGISTER] User saved to database');
       } catch (dbErr) {
-        console.error('Database save error:', dbErr);
+        console.error('❌ [REGISTER] Database save error:', dbErr);
+        // Remove from memory if database fails
         usersDb.delete(cleanEmail);
         return res.status(500).json({
           success: false,
-          error: 'Failed to create account'
+          error: 'Failed to create account. Please try again.'
         });
       }
+    } else {
+      console.log('⚠️ [REGISTER] No database connection - using memory only');
     }
 
     // Generate verification token
-    const verifyToken = createEmailVerificationToken(cleanEmail);
-    
-    // Send verification email
     try {
+      const verifyToken = createEmailVerificationToken(cleanEmail);
       await sendVerificationEmail(cleanEmail, verifyToken);
+      console.log('✅ [REGISTER] Verification email sent');
     } catch (emailErr) {
-      console.warn('Email send failed:', emailErr);
+      console.warn('⚠️ [REGISTER] Email send failed:', emailErr);
     }
 
     // Create session
@@ -194,7 +214,7 @@ export async function handleRegister(req: Request, res: Response) {
     const sessionToken = createSessionToken(cleanEmail, clientInfo.ip, clientInfo.userAgent);
     const refreshToken = createRefreshToken(cleanEmail);
 
-    const { passwordHash: _, ...publicUser } = user;
+    const { passwordHash: _, ...publicUser } = userForMemory;
 
     return res.status(201).json({
       success: true,
@@ -204,10 +224,10 @@ export async function handleRegister(req: Request, res: Response) {
       user: publicUser
     });
   } catch (error: any) {
-    console.error('Registration error:', error);
+    console.error('❌ [REGISTER] Registration error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to create account'
+      error: error.message || 'Failed to create account'
     });
   }
 }
@@ -217,6 +237,7 @@ export async function handleRegister(req: Request, res: Response) {
  */
 export async function handleLogin(req: Request, res: Response) {
   try {
+    console.log('🔐 [LOGIN] Request received');
     const { email, password } = req.body;
 
     if (!email || !email.includes('@')) {
@@ -237,12 +258,14 @@ export async function handleLogin(req: Request, res: Response) {
     let user = findUserByEmail(cleanEmail);
 
     // Check database if not in memory
-    if (!user && db) {
+    if (!user && db && isDatabaseConnected) {
       try {
+        console.log('🔐 [LOGIN] Checking database for user...');
         const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
         if (dbUsers.length > 0) {
           user = mapDbUserToServerUser(dbUsers[0], req);
           usersDb.set(cleanEmail, user);
+          console.log('✅ [LOGIN] User found in database');
         }
       } catch (dbErr) {
         console.warn('Database lookup error:', dbErr);
@@ -250,6 +273,7 @@ export async function handleLogin(req: Request, res: Response) {
     }
 
     if (!user) {
+      console.log('❌ [LOGIN] User not found:', cleanEmail);
       return res.status(401).json({
         success: false,
         error: 'Invalid credentials'
@@ -280,7 +304,7 @@ export async function handleLogin(req: Request, res: Response) {
       
       // Lock account after 5 failed attempts
       if (failedAttempts >= 5) {
-        updates.lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
+        updates.lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
       }
       
       updateUser(cleanEmail, updates);
@@ -307,6 +331,7 @@ export async function handleLogin(req: Request, res: Response) {
 
     const { passwordHash: _, ...publicUser } = user;
 
+    console.log('✅ [LOGIN] Login successful:', cleanEmail);
     return res.json({
       success: true,
       token: sessionToken,
@@ -314,7 +339,7 @@ export async function handleLogin(req: Request, res: Response) {
       user: publicUser
     });
   } catch (error: any) {
-    console.error('Login error:', error);
+    console.error('❌ [LOGIN] Login error:', error);
     return res.status(500).json({
       success: false,
       error: 'Failed to authenticate'
@@ -375,7 +400,7 @@ export async function handleGetMe(req: Request, res: Response) {
     }
 
     let user = findUserByEmail(session.userEmail);
-    if (!user && db) {
+    if (!user && db && isDatabaseConnected) {
       try {
         const dbUsers = await db.select().from(users).where(eq(users.email, session.userEmail)).limit(1);
         if (dbUsers.length > 0) {
@@ -679,7 +704,6 @@ router.get('/:provider', (req, res, next) => {
   }
   return handleProviderOAuthFlow(req, res);
 });
-
 
 // Export the router as default
 export default router;
