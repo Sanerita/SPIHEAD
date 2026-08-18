@@ -126,6 +126,8 @@ export async function withDb<T>(
 
 // Export the schema for convenience
 export * from './schema.js';
+export * from './init.js';
+
 
 // ============================================
 // DEFAULT EXPORT
