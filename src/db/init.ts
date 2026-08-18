@@ -211,80 +211,65 @@ const TABLES = {
 // ============================================
 
 const INDEXES = [
-  // Users
+  // Users indexes
   `CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);`,
   `CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);`,
   `CREATE INDEX IF NOT EXISTS idx_users_is_active ON users (is_active);`,
 
-  // Leads
+  // Leads indexes
   `CREATE INDEX IF NOT EXISTS idx_leads_user_id ON leads (user_id);`,
   `CREATE INDEX IF NOT EXISTS idx_leads_status ON leads (status);`,
   `CREATE INDEX IF NOT EXISTS idx_leads_company ON leads (company);`,
   `CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads (created_at);`,
 
-  // OAuth Tokens
+  // OAuth Tokens indexes
   `CREATE INDEX IF NOT EXISTS idx_oauth_tokens_user_provider ON oauth_tokens (user_email, provider);`,
   `CREATE INDEX IF NOT EXISTS idx_oauth_tokens_expires_at ON oauth_tokens (expires_at);`,
 
-  // Meetings
+  // Meetings indexes
   `CREATE INDEX IF NOT EXISTS idx_meetings_user_id ON meetings (user_id);`,
   `CREATE INDEX IF NOT EXISTS idx_meetings_lead_id ON meetings (lead_id);`,
   `CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings (date);`,
 
-  // Activities
+  // Activities indexes
   `CREATE INDEX IF NOT EXISTS idx_activities_user_id ON activities (user_id);`,
   `CREATE INDEX IF NOT EXISTS idx_activities_lead_id ON activities (lead_id);`,
   `CREATE INDEX IF NOT EXISTS idx_activities_timestamp ON activities (timestamp);`,
 
-  // Sessions
+  // Sessions indexes
   `CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions (user_id);`,
   `CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions (token);`,
   `CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions (expires_at);`,
 
-  // Email Logs
+  // Email Logs indexes
   `CREATE INDEX IF NOT EXISTS idx_email_logs_user_id ON email_logs (user_id);`,
   `CREATE INDEX IF NOT EXISTS idx_email_logs_lead_id ON email_logs (lead_id);`,
 
-  // API Keys
+  // API Keys indexes
   `CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys (user_id);`,
   `CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys (key);`,
 
-  // Audit Logs
+  // Audit Logs indexes
   `CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs (user_id);`,
   `CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at);`,
 
-  // Subscriptions
+  // Subscriptions indexes
   `CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions (user_id);`,
   `CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions (status);`,
 
-  // Invoices
+  // Invoices indexes
   `CREATE INDEX IF NOT EXISTS idx_invoices_user_id ON invoices (user_id);`,
   `CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices (status);`,
 ];
 
 // ============================================
-// MIGRATION FUNCTIONS
-// ============================================
-
-async function addColumnIfNotExists(table: string, column: string, definition: string) {
-  try {
-    await sql`
-      ALTER TABLE ${sql(table)} 
-      ADD COLUMN IF NOT EXISTS ${sql(column)} ${sql(definition)};
-    `;
-    return true;
-  } catch (error) {
-    console.warn(`⚠️ Could not add column ${column} to ${table}:`, error);
-    return false;
-  }
-}
-
-// ============================================
 // MAIN INITIALIZATION FUNCTION
 // ============================================
 
-export async function initDbTables() {
-  // Check if database is available
+export async function initDbTables(): Promise<boolean> {
+  console.log('📦 [DB] Starting database initialization...');
+
+  // 1. Check if database is available
   if (!isDatabaseConnected) {
     const status = getDbStatus();
     console.warn('⚠️ [DB] Skipping table initialization: Database not connected');
@@ -292,75 +277,51 @@ export async function initDbTables() {
     return false;
   }
 
+  // 2. Check DATABASE_URL
   if (!process.env.DATABASE_URL) {
     console.warn('⚠️ [DB] No DATABASE_URL set, skipping table initialization.');
     return false;
   }
 
-  // Test connection first
+  // 3. Test connection
+  console.log('🔍 [DB] Testing database connection...');
   const connected = await testConnection();
   if (!connected) {
     console.warn('⚠️ [DB] Connection test failed, skipping initialization.');
     return false;
   }
 
-  console.log('📦 [DB] Initializing database tables...');
+  console.log('✅ [DB] Connection verified, creating tables...');
 
   try {
-    // 1. Create all tables
+    // 4. Create all tables
     console.log('📦 [DB] Creating tables...');
+    let createdCount = 0;
+    
     for (const [tableName, createSQL] of Object.entries(TABLES)) {
       try {
-        await sql`${createSQL}`;
-        console.log(`   ✅ Table ${tableName} created/verified`);
+        await sql(createSQL);
+        console.log(`   ✅ Table "${tableName}" created/verified`);
+        createdCount++;
       } catch (error) {
-        console.warn(`   ⚠️ Error creating table ${tableName}:`, error);
+        console.warn(`   ⚠️ Error creating table "${tableName}":`, error);
       }
     }
+    console.log(`📦 [DB] ${createdCount}/${Object.keys(TABLES).length} tables processed`);
 
-    // 2. Create all indexes
+    // 5. Create indexes
     console.log('📦 [DB] Creating indexes...');
+    let indexCount = 0;
+    
     for (const indexSQL of INDEXES) {
       try {
-        await sql`${indexSQL}`;
+        await sql(indexSQL);
+        indexCount++;
       } catch (error) {
         console.warn(`   ⚠️ Error creating index:`, error);
       }
     }
-
-    // 3. Run migrations for existing tables (add missing columns)
-    console.log('📦 [DB] Running migrations...');
-
-    // Users table migrations
-    await addColumnIfNotExists('users', 'auth_role', 'TEXT DEFAULT \'User\'');
-    await addColumnIfNotExists('users', 'company_size', 'TEXT');
-    await addColumnIfNotExists('users', 'ip_address', 'TEXT');
-    await addColumnIfNotExists('users', 'mfa_enabled', 'BOOLEAN DEFAULT false');
-    await addColumnIfNotExists('users', 'pin_code', 'TEXT');
-    await addColumnIfNotExists('users', 'last_login_at', 'TIMESTAMP');
-    await addColumnIfNotExists('users', 'is_active', 'BOOLEAN DEFAULT true');
-    await addColumnIfNotExists('users', 'email_verified', 'BOOLEAN DEFAULT false');
-    await addColumnIfNotExists('users', 'failed_login_attempts', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists('users', 'locked_until', 'TIMESTAMP');
-    await addColumnIfNotExists('users', 'last_password_change', 'TIMESTAMP');
-
-    // Leads table migrations
-    await addColumnIfNotExists('leads', 'tags', 'JSONB');
-    await addColumnIfNotExists('leads', 'm365_synced', 'BOOLEAN DEFAULT false');
-    await addColumnIfNotExists('leads', 'last_contacted_at', 'TIMESTAMP');
-
-    // OAuth tokens migrations
-    await addColumnIfNotExists('oauth_tokens', 'token_type', 'TEXT DEFAULT \'Bearer\'');
-
-    // Meetings migrations
-    await addColumnIfNotExists('meetings', 'meeting_link', 'TEXT');
-    await addColumnIfNotExists('meetings', 'calendar_event_id', 'TEXT');
-    await addColumnIfNotExists('meetings', 'reminder_sent', 'BOOLEAN DEFAULT false');
-    await addColumnIfNotExists('meetings', 'updated_at', 'TIMESTAMP DEFAULT NOW()');
-
-    // Activities migrations
-    await addColumnIfNotExists('activities', 'metadata', 'JSONB');
-    await addColumnIfNotExists('activities', 'created_at', 'TIMESTAMP DEFAULT NOW()');
+    console.log(`📦 [DB] ${indexCount}/${INDEXES.length} indexes processed`);
 
     console.log('✅ [DB] Database initialization complete!');
     return true;
@@ -408,13 +369,6 @@ export async function checkDbHealth(): Promise<{
 
   return result;
 }
-
-// ============================================
-// AUTO-INITIALIZE IN DEVELOPMENT (REMOVED TOP-LEVEL AWAIT)
-// ============================================
-
-// We removed the auto-initialization here to avoid top-level await.
-// Instead, it will be called from createApp.ts
 
 // ============================================
 // EXPORTS
