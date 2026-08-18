@@ -32,7 +32,7 @@ export const users = pgTable('users', {
 }));
 
 // ============================================
-// LEADS TABLE
+// LEADS TABLE - MATCHES ACTUAL DATABASE SCHEMA
 // ============================================
 export const leads = pgTable('leads', {
   id: text('id').primaryKey(),
@@ -49,9 +49,10 @@ export const leads = pgTable('leads', {
   replyCount: integer('reply_count').default(0),
   notes: text('notes'),
   industry: text('industry'),
-  tags: jsonb('tags'), // ✅ Changed to jsonb for better querying
-  m365Synced: boolean('m365_synced').default(false),
-  lastContactedAt: timestamp('last_contacted_at'),
+  tags: text('tags'), // ✅ Changed to text to match actual database
+  // ✅ REMOVED - These columns don't exist in your database
+  // m365Synced: boolean('m365_synced').default(false),
+  // lastContactedAt: timestamp('last_contacted_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
@@ -64,7 +65,7 @@ export const leads = pgTable('leads', {
 export const oauthTokens = pgTable('oauth_tokens', {
   id: text('id').primaryKey(),
   userEmail: text('user_email').notNull(),
-  provider: text('provider').notNull(), // 'microsoft' | 'google'
+  provider: text('provider').notNull(),
   accessToken: text('access_token').notNull(),
   refreshToken: text('refresh_token'),
   expiresAt: timestamp('expires_at').notNull(),
@@ -108,11 +109,11 @@ export const meetings = pgTable('meetings', {
 export const activities = pgTable('activities', {
   id: text('id').primaryKey(),
   userId: text('user_id'),
-  type: text('type').notNull(), // 'email', 'call', 'meeting', 'note', 'task'
+  type: text('type').notNull(),
   message: text('message').notNull(),
   leadId: text('lead_id'),
   leadName: text('lead_name'),
-  metadata: jsonb('metadata'), // Additional data like email subject, call duration, etc.
+  metadata: jsonb('metadata'),
   timestamp: timestamp('timestamp').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
@@ -122,7 +123,7 @@ export const activities = pgTable('activities', {
 }));
 
 // ============================================
-// SESSIONS TABLE (Optional - for persistent sessions)
+// SESSIONS TABLE
 // ============================================
 export const sessions = pgTable('sessions', {
   id: text('id').primaryKey(),
@@ -140,7 +141,7 @@ export const sessions = pgTable('sessions', {
 }));
 
 // ============================================
-// EMAIL LOGS TABLE (Optional)
+// EMAIL LOGS TABLE
 // ============================================
 export const emailLogs = pgTable('email_logs', {
   id: text('id').primaryKey(),
@@ -149,7 +150,7 @@ export const emailLogs = pgTable('email_logs', {
   to: text('to').notNull(),
   subject: text('subject').notNull(),
   body: text('body'),
-  status: text('status').default('sent'), // 'sent', 'failed', 'opened', 'clicked'
+  status: text('status').default('sent'),
   sentAt: timestamp('sent_at').defaultNow(),
   openedAt: timestamp('opened_at'),
   clickedAt: timestamp('clicked_at'),
@@ -161,7 +162,7 @@ export const emailLogs = pgTable('email_logs', {
 }));
 
 // ============================================
-// API KEYS TABLE (Optional - for API access)
+// API KEYS TABLE
 // ============================================
 export const apiKeys = pgTable('api_keys', {
   id: text('id').primaryKey(),
@@ -171,7 +172,7 @@ export const apiKeys = pgTable('api_keys', {
   lastUsedAt: timestamp('last_used_at'),
   expiresAt: timestamp('expires_at'),
   isActive: boolean('is_active').default(true),
-  permissions: jsonb('permissions'), // Array of permissions
+  permissions: jsonb('permissions'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
@@ -180,7 +181,7 @@ export const apiKeys = pgTable('api_keys', {
 }));
 
 // ============================================
-// AUDIT LOGS TABLE (Optional - for security)
+// AUDIT LOGS TABLE
 // ============================================
 export const auditLogs = pgTable('audit_logs', {
   id: text('id').primaryKey(),
@@ -191,7 +192,7 @@ export const auditLogs = pgTable('audit_logs', {
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
   details: jsonb('details'),
-  severity: text('severity').default('info'), // 'info', 'warning', 'error', 'critical'
+  severity: text('severity').default('info'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   userIdIdx: uniqueIndex('audit_logs_user_id_idx').on(table.userId),
@@ -199,17 +200,17 @@ export const auditLogs = pgTable('audit_logs', {
 }));
 
 // ============================================
-// SUBSCRIPTIONS TABLE (Optional)
+// SUBSCRIPTIONS TABLE
 // ============================================
 export const subscriptions = pgTable('subscriptions', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().unique(),
-  plan: text('plan').default('free'), // 'free', 'freelancer', 'business', 'enterprise'
-  status: text('status').default('active'), // 'active', 'canceled', 'expired', 'trial'
+  plan: text('plan').default('free'),
+  status: text('status').default('active'),
   seats: integer('seats').default(1),
   aiCredits: integer('ai_credits').default(150),
   aiCreditsUsed: integer('ai_credits_used').default(0),
-  billingInterval: text('billing_interval').default('monthly'), // 'monthly', 'annual'
+  billingInterval: text('billing_interval').default('monthly'),
   trialEndsAt: timestamp('trial_ends_at'),
   nextBillingAt: timestamp('next_billing_at'),
   stripeCustomerId: text('stripe_customer_id'),
@@ -221,7 +222,7 @@ export const subscriptions = pgTable('subscriptions', {
 }));
 
 // ============================================
-// INVOICES TABLE (Optional)
+// INVOICES TABLE
 // ============================================
 export const invoices = pgTable('invoices', {
   id: text('id').primaryKey(),
@@ -229,7 +230,7 @@ export const invoices = pgTable('invoices', {
   subscriptionId: text('subscription_id'),
   amount: integer('amount').notNull(),
   currency: text('currency').default('USD'),
-  status: text('status').default('pending'), // 'pending', 'paid', 'failed'
+  status: text('status').default('pending'),
   stripeInvoiceId: text('stripe_invoice_id'),
   stripePaymentIntentId: text('stripe_payment_intent_id'),
   paidAt: timestamp('paid_at'),
