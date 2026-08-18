@@ -8,151 +8,145 @@ import { handleProviderOAuthFlow } from './auth/[provider].js';
 
 const router = Router();
 
-// Helper function to ensure all required fields are present
-function ensureServerUser(userData: any): ServerUser {
+// Helper function to create a ServerUser from database data
+function mapDbUserToServerUser(dbU: any, req?: Request): ServerUser {
   const now = new Date().toISOString();
   return {
-    id: userData.id || `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`,
+    id: dbU.id,
+    email: dbU.email.toLowerCase(),
+    name: dbU.name || '',
+    passwordHash: dbU.passwordHash || '',
+    role: dbU.role || 'User',
+    authRole: dbU.authRole || dbU.role || 'User',
+    mfaEnabled: dbU.mfaEnabled || false,
+    pinCode: dbU.pinCode || '',
+    lastLoginAt: dbU.lastLoginAt || now,
+    jobTitle: dbU.jobTitle || '',
+    department: dbU.department || '',
+    ipAddress: req?.ip || dbU.ipAddress || 'unknown',
+    companyName: dbU.companyName || dbU.company || '',
+    companySize: dbU.companySize || '',
+    selectedPlan: dbU.selectedPlan || 'free',
+    createdAt: dbU.createdAt || now,
+    updatedAt: dbU.updatedAt || now,
+    isActive: dbU.isActive !== undefined ? dbU.isActive : true,
+    emailVerified: dbU.emailVerified || false
+  };
+}
+
+// Helper to create new user with only provided data
+function createNewUser(userData: {
+  email: string;
+  name: string;
+  passwordHash: string;
+  role?: string;
+  companyName?: string;
+  ipAddress?: string;
+}): ServerUser {
+  const now = new Date().toISOString();
+  return {
+    id: `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`,
     email: userData.email.toLowerCase(),
-    name: userData.name || 'User',
-    passwordHash: userData.passwordHash || crypto.createHash('sha256').update('Password123!').digest('hex'),
+    name: userData.name,
+    passwordHash: userData.passwordHash,
     role: userData.role || 'User',
-    authRole: userData.authRole || userData.role || 'User',
-    mfaEnabled: userData.mfaEnabled !== undefined ? userData.mfaEnabled : true,
-    pinCode: userData.pinCode || '1234',
-    lastLoginAt: userData.lastLoginAt || now,
-    jobTitle: userData.jobTitle || '',
-    department: userData.department || '',
-    ipAddress: userData.ipAddress || '127.0.0.1',
+    authRole: userData.role || 'User',
+    mfaEnabled: false,
+    pinCode: '',
+    lastLoginAt: now,
+    jobTitle: '',
+    department: '',
+    ipAddress: userData.ipAddress || 'unknown',
     companyName: userData.companyName || '',
-    companySize: userData.companySize || '',
-    selectedPlan: userData.selectedPlan || 'small-business',
-    createdAt: userData.createdAt || now,
-    updatedAt: userData.updatedAt || now,
-    isActive: userData.isActive !== undefined ? userData.isActive : true,
-    emailVerified: userData.emailVerified || false
+    companySize: '',
+    selectedPlan: 'free',
+    createdAt: now,
+    updatedAt: now,
+    isActive: true,
+    emailVerified: false
   };
 }
 
 /**
  * Handles POST /api/auth/login
- * Queries Neon PostgreSQL database via Drizzle ORM and validates credentials.
  */
 export async function handleLogin(req: Request, res: Response) {
   if (res.headersSent) return;
   try {
-    const { email, password, role } = req.body || {};
+    const { email, password } = req.body || {};
 
     if (!email || typeof email !== 'string' || !email.includes('@')) {
-      if (res.headersSent) return;
-      return res.status(400).json({ success: false, error: 'Please enter a valid enterprise email address.' });
+      return res.status(400).json({ success: false, error: 'Please enter a valid email address.' });
     }
 
     if (!password || typeof password !== 'string' || !password.trim()) {
-      if (res.headersSent) return;
       return res.status(400).json({ success: false, error: 'Password is required to sign in.' });
     }
 
     const cleanEmail = email.trim().toLowerCase();
     let user = usersDb.get(cleanEmail);
 
-    // Query Neon DB using Drizzle ORM if not cached in memory
+    // Query database if not in cache
     if (!user && db) {
       try {
         const dbResult = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
         if (dbResult && dbResult.length > 0) {
-          const dbU = dbResult[0];
-          user = ensureServerUser({
-            id: dbU.id,
-            email: dbU.email,
-            name: dbU.name,
-            passwordHash: dbU.passwordHash || crypto.createHash('sha256').update('Password123!').digest('hex'),
-            role: dbU.role,
-            authRole: dbU.role,
-            mfaEnabled: true,
-            pinCode: '1234',
-            lastLoginAt: new Date().toISOString(),
-            jobTitle: dbU.jobTitle || 'Workspace Director',
-            department: dbU.department || 'Executive Operations',
-            ipAddress: req.ip || '127.0.0.1',
-            companyName: dbU.company || 'Enterprise Workspace',
-            selectedPlan: dbU.selectedPlan || 'small-business'
-          });
+          user = mapDbUserToServerUser(dbResult[0], req);
           usersDb.set(cleanEmail, user);
         }
       } catch (dbErr) {
         console.warn('DB user query error during login:', dbErr);
+        return res.status(500).json({ success: false, error: 'Database error occurred.' });
       }
     }
 
     if (!user) {
-      // Auto-provision user account seamlessly if not found
-      const userId = 'usr_' + Date.now().toString(36) + '_' + crypto.randomBytes(3).toString('hex');
-      const assignedRole = role || 'Admin';
-      const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-      const userName = cleanEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
-
-      user = ensureServerUser({
-        id: userId,
-        email: cleanEmail,
-        name: userName || 'Enterprise Director',
-        passwordHash,
-        role: assignedRole,
-        authRole: assignedRole,
-        mfaEnabled: true,
-        pinCode: '1234',
-        lastLoginAt: new Date().toISOString(),
-        jobTitle: 'Workspace Director',
-        department: 'Executive Operations',
-        ipAddress: req.ip || '127.0.0.1',
-        companyName: 'SPIHEAD Enterprise',
-        companySize: '11-50',
-        selectedPlan: 'small-business'
+      return res.status(401).json({ 
+        success: false, 
+        error: 'No account found with this email. Please sign up first.' 
       });
+    }
 
-      usersDb.set(cleanEmail, user);
-
-      if (db) {
-        try {
-          await db.insert(users).values({
-            id: user.id,
-            name: user.name,
-            email: cleanEmail,
-            role: assignedRole,
-            company: user.companyName,
-            passwordHash: passwordHash,
-            jobTitle: user.jobTitle,
-            department: user.department,
-            selectedPlan: user.selectedPlan,
-          });
-        } catch (dbErr) {
-          console.warn('Auto-provision user in Neon DB warning:', dbErr);
-        }
-      }
+    // Check if account is active
+    if (!user.isActive) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Account has been deactivated. Please contact support.' 
+      });
     }
 
     // Validate password
     const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
     if (user.passwordHash && passwordHash !== user.passwordHash) {
-      if (res.headersSent) return;
-      return res.status(401).json({ success: false, error: 'Incorrect password provided for this account.' });
+      return res.status(401).json({ success: false, error: 'Incorrect password.' });
     }
 
-    // Update last login timestamp and optional role override
+    // Update last login
     user.lastLoginAt = new Date().toISOString();
     user.updatedAt = new Date().toISOString();
-    if (role) {
-      user.role = role;
-      user.authRole = role;
-    }
+    user.ipAddress = req.ip || user.ipAddress || 'unknown';
     usersDb.set(cleanEmail, user);
 
-    // Issue Session Token (stateless signed token)
+    // Update database
+    if (db) {
+      try {
+        await db.update(users)
+          .set({ 
+            lastLoginAt: user.lastLoginAt,
+            updatedAt: user.updatedAt,
+            ipAddress: user.ipAddress
+          })
+          .where(eq(users.email, cleanEmail));
+      } catch (dbErr) {
+        console.warn('Failed to update last login:', dbErr);
+      }
+    }
+
+    // Create session token
     const token = createSessionToken(cleanEmail);
 
     const { passwordHash: _, ...publicProfile } = user;
 
-    if (res.headersSent) return;
     return res.json({
       success: true,
       token,
@@ -161,197 +155,369 @@ export async function handleLogin(req: Request, res: Response) {
     });
   } catch (err: any) {
     console.error('Error in login endpoint:', err);
-    if (res.headersSent) return;
-    return res.status(500).json({ success: false, error: err?.message || 'Internal server error during authentication.' });
+    return res.status(500).json({ 
+      success: false, 
+      error: err?.message || 'Internal server error during authentication.' 
+    });
   }
 }
 
 /**
  * Handles POST /api/auth/signup
- * Inserts new user account into Neon PostgreSQL database via Drizzle ORM.
  */
 export async function handleSignup(req: Request, res: Response) {
   if (res.headersSent) return;
   try {
-    const { fullName, email, password, companyName, companySize, role, selectedPlan } = req.body || {};
+    const { fullName, email, password, companyName } = req.body || {};
 
+    // Validate required fields
     if (!email || typeof email !== 'string' || !email.includes('@')) {
-      if (res.headersSent) return;
-      return res.status(400).json({ success: false, error: 'A valid work email address is required.' });
+      return res.status(400).json({ 
+        success: false, 
+        error: 'A valid email address is required.' 
+      });
     }
 
-    if (!password || typeof password !== 'string' || password.length < 6) {
-      if (res.headersSent) return;
-      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
+    if (!password || typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Password must be at least 8 characters long.' 
+      });
+    }
+
+    if (!fullName || typeof fullName !== 'string' || fullName.trim().length < 2) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Full name is required.' 
+      });
     }
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Check Neon DB and memory for existing user
-    let existingInDb = null;
+    // Check for existing user
     if (db) {
       try {
         const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
         if (dbUsers && dbUsers.length > 0) {
-          existingInDb = dbUsers[0];
+          return res.status(400).json({
+            success: false,
+            error: `An account with ${cleanEmail} already exists. Please sign in.`
+          });
         }
       } catch (err) {
-        console.warn('Neon DB user query warning during signup:', err);
+        console.warn('Database check error during signup:', err);
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Error checking existing account.' 
+        });
       }
     }
 
-    if (existingInDb || usersDb.has(cleanEmail)) {
-      if (res.headersSent) return;
+    if (usersDb.has(cleanEmail)) {
       return res.status(400).json({
         success: false,
-        error: `An account with ${cleanEmail} already exists. Please sign in instead.`
+        error: `An account with ${cleanEmail} already exists. Please sign in.`
       });
     }
 
-    const safeFullName = typeof fullName === 'string' ? fullName.trim() : (fullName ? String(fullName) : '');
-    const safeCompanyName = typeof companyName === 'string' ? companyName.trim() : (companyName ? String(companyName) : '');
-
+    // Create new user
     const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-    const userId = 'usr_' + Date.now().toString(36) + '_' + crypto.randomBytes(3).toString('hex');
-    const assignedRole = role || 'Admin';
-
-    const newUser = ensureServerUser({
-      id: userId,
+    const newUser = createNewUser({
       email: cleanEmail,
-      name: safeFullName || 'Workspace Director',
+      name: fullName.trim(),
       passwordHash,
-      role: assignedRole,
-      authRole: assignedRole,
-      mfaEnabled: true,
-      pinCode: '1234',
-      lastLoginAt: new Date().toISOString(),
-      jobTitle: `${safeCompanyName || 'Enterprise'} Workspace Administrator`,
-      department: 'Executive Operations',
-      ipAddress: req.ip || '127.0.0.1',
-      companyName: safeCompanyName || 'Enterprise Workspace',
-      companySize: companySize || '11-50',
-      selectedPlan: selectedPlan || 'small-business'
+      companyName: companyName?.trim() || '',
+      ipAddress: req.ip || 'unknown'
     });
 
-    // Store in memory cache
+    // Store in memory
     usersDb.set(cleanEmail, newUser);
 
-    // Persist to Neon DB using Drizzle ORM
+    // Persist to database
     if (db) {
       try {
         await db.insert(users).values({
-          id: userId,
+          id: newUser.id,
           name: newUser.name,
-          email: cleanEmail,
-          role: assignedRole,
+          email: newUser.email,
+          role: newUser.role,
           company: newUser.companyName,
-          passwordHash: passwordHash,
+          passwordHash: newUser.passwordHash,
           jobTitle: newUser.jobTitle,
           department: newUser.department,
           selectedPlan: newUser.selectedPlan,
+          createdAt: newUser.createdAt,
+          updatedAt: newUser.updatedAt,
+          isActive: newUser.isActive,
+          emailVerified: newUser.emailVerified,
+          ipAddress: newUser.ipAddress
         });
       } catch (dbErr) {
-        console.warn('Persist user to Neon DB warning:', dbErr);
+        console.error('Failed to persist user to database:', dbErr);
+        // Remove from memory if database fails
+        usersDb.delete(cleanEmail);
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Failed to create account. Please try again.' 
+        });
       }
     }
 
-    // Issue Session Token (stateless signed token)
+    // Create session token
     const token = createSessionToken(cleanEmail);
 
     const { passwordHash: _, ...publicProfile } = newUser;
 
-    if (res.headersSent) return;
     return res.json({
       success: true,
       token,
       user: publicProfile,
-      message: 'Enterprise workspace account created successfully.'
+      message: 'Account created successfully.'
     });
   } catch (err: any) {
     console.error('Error in signup endpoint:', err);
-    if (res.headersSent) return;
-    return res.status(500).json({ success: false, error: err?.message || 'Internal server error during account registration.' });
+    return res.status(500).json({ 
+      success: false, 
+      error: err?.message || 'Internal server error during registration.' 
+    });
   }
 }
 
-// 1. Sign Up Endpoint (/api/auth/signup)
-router.post(['/signup', '/signup/'], handleSignup);
-router.get(['/signup', '/signup/'], (req: Request, res: Response) => {
-  if (res.headersSent) return;
-  return res.json({ success: true, message: 'SPIHEAD Authentication Signup API endpoint active. Use POST to register.' });
-});
-
-// 2. Sign In / Login Endpoint (/api/auth/login)
-router.post(['/login', '/login/'], handleLogin);
-router.get(['/login', '/login/'], (req: Request, res: Response) => {
-  if (res.headersSent) return;
-  return res.json({ success: true, message: 'SPIHEAD Authentication Login API endpoint active. Use POST to sign in.' });
-});
-
-// 3. Current User Endpoint (/api/auth/me)
-router.all(['/me', '/me/'], async (req: Request, res: Response) => {
+/**
+ * Handles GET /api/auth/me
+ */
+export async function handleGetMe(req: Request, res: Response) {
   try {
-    let token = '';
-    const authHeader = req.headers.authorization || (req.headers as any).Authorization;
-    if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    } else if (req.query && typeof req.query.token === 'string') {
-      token = req.query.token;
-    } else if (req.body && typeof req.body.token === 'string') {
-      token = req.body.token;
-    }
-
+    const token = extractToken(req);
+    
     if (!token) {
-      return res.status(401).json({ success: false, isAuthenticated: false, error: 'No token provided.' });
+      return res.status(401).json({ 
+        success: false, 
+        isAuthenticated: false, 
+        error: 'No token provided.' 
+      });
     }
 
     const session = getVerifiedSession(token);
-
     if (!session) {
       activeSessions.delete(token);
-      return res.status(401).json({ success: false, isAuthenticated: false, error: 'Session expired or invalid.' });
+      return res.status(401).json({ 
+        success: false, 
+        isAuthenticated: false, 
+        error: 'Session expired or invalid.' 
+      });
     }
 
     let user = usersDb.get(session.userEmail);
+    
     if (!user && db) {
       try {
         const dbUsers = await db.select().from(users).where(eq(users.email, session.userEmail)).limit(1);
         if (dbUsers.length > 0) {
-          const dbU = dbUsers[0];
-          user = ensureServerUser({
-            id: dbU.id,
-            email: dbU.email,
-            name: dbU.name,
-            passwordHash: dbU.passwordHash || '',
-            role: dbU.role || 'Admin',
-            authRole: dbU.role || 'Admin',
-            mfaEnabled: true,
-            pinCode: '1234',
-            lastLoginAt: new Date().toISOString(),
-            jobTitle: dbU.jobTitle || 'Workspace Administrator',
-            department: dbU.department || 'Executive Operations',
-            ipAddress: req.ip || '127.0.0.1',
-            companyName: dbU.company || 'Enterprise Workspace',
-            selectedPlan: dbU.selectedPlan || 'small-business'
-          });
+          user = mapDbUserToServerUser(dbUsers[0], req);
           usersDb.set(session.userEmail, user);
         }
       } catch (dbErr) {
         console.warn('DB user lookup error in /api/auth/me:', dbErr);
+        return res.status(500).json({ 
+          success: false, 
+          isAuthenticated: false, 
+          error: 'Database error occurred.' 
+        });
       }
     }
 
     if (!user) {
-      return res.status(404).json({ success: false, isAuthenticated: false, error: 'User account not found.' });
+      return res.status(404).json({ 
+        success: false, 
+        isAuthenticated: false, 
+        error: 'User account not found.' 
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({ 
+        success: false, 
+        isAuthenticated: false, 
+        error: 'Account is deactivated.' 
+      });
     }
 
     const { passwordHash: _, ...publicProfile } = user;
-    return res.json({ success: true, isAuthenticated: true, user: publicProfile });
+    return res.json({ 
+      success: true, 
+      isAuthenticated: true, 
+      user: publicProfile 
+    });
   } catch (err: any) {
-    return res.status(500).json({ success: false, isAuthenticated: false, error: 'Failed to authenticate session.' });
+    console.error('Error in /me endpoint:', err);
+    return res.status(500).json({ 
+      success: false, 
+      isAuthenticated: false, 
+      error: 'Failed to authenticate session.' 
+    });
   }
+}
+
+/**
+ * Handles POST /api/auth/logout
+ */
+export async function handleLogout(req: Request, res: Response) {
+  try {
+    const token = extractToken(req);
+    if (token) {
+      activeSessions.delete(token);
+    }
+    return res.json({ success: true, message: 'Logged out successfully.' });
+  } catch (err: any) {
+    console.error('Logout error:', err);
+    return res.status(500).json({ success: false, error: 'Logout failed.' });
+  }
+}
+
+/**
+ * Helper to extract token from request
+ */
+function extractToken(req: Request): string {
+  const authHeader = req.headers.authorization;
+  if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+    return authHeader.split(' ')[1];
+  }
+  
+  if (req.query && typeof req.query.token === 'string') {
+    return req.query.token;
+  }
+  
+  if (req.body && typeof req.body.token === 'string') {
+    return req.body.token;
+  }
+  
+  return '';
+}
+
+// ============= ROUTE REGISTRATION =============
+
+// 1. Sign Up
+router.post('/signup', handleSignup);
+router.post('/signup/', handleSignup);
+router.get('/signup', (req: Request, res: Response) => {
+  return res.json({ success: true, message: 'Signup API endpoint. Use POST to register.' });
 });
 
-// ... rest of your auth.ts code (OAuth endpoints, logout, etc.)
+// 2. Login
+router.post('/login', handleLogin);
+router.post('/login/', handleLogin);
+router.get('/login', (req: Request, res: Response) => {
+  return res.json({ success: true, message: 'Login API endpoint. Use POST to sign in.' });
+});
+
+// 3. Current User
+router.get('/me', handleGetMe);
+router.get('/me/', handleGetMe);
+router.post('/me', handleGetMe);
+router.post('/me/', handleGetMe);
+
+// 4. Logout
+router.post('/logout', handleLogout);
+router.post('/logout/', handleLogout);
+
+// 5. OAuth URL
+router.get('/oauth/url', (req: Request, res: Response) => {
+  try {
+    const provider = (req.query.provider as string || 'microsoft').toLowerCase();
+    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+
+    if (provider === 'google') {
+      const clientId = process.env.GOOGLE_CLIENT_ID || 'demo-google-client-id.apps.googleusercontent.com';
+      const redirectUri = `${appUrl}/api/auth/oauth/callback/google`;
+      const googleScopes = [
+        'openid',
+        'profile',
+        'email',
+        'https://www.googleapis.com/auth/gmail.modify',
+        'https://www.googleapis.com/auth/calendar',
+        'https://www.googleapis.com/auth/contacts.readonly'
+      ];
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: googleScopes.join(' '),
+        access_type: 'offline',
+        prompt: 'consent'
+      });
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+      return res.json({ success: true, url: authUrl, provider: 'Google Workspace' });
+    } else {
+      const clientId = process.env.MICROSOFT_CLIENT_ID || 'demo-m365-client-id';
+      const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
+      const redirectUri = `${appUrl}/api/auth/oauth/callback/microsoft`;
+      const m365Scopes = [
+        'openid',
+        'profile',
+        'email',
+        'offline_access',
+        'User.Read',
+        'Mail.ReadWrite',
+        'Mail.Send',
+        'Calendars.ReadWrite',
+        'Contacts.Read',
+        'Contacts.ReadWrite',
+        'OnlineMeetings.ReadWrite'
+      ];
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        response_type: 'code',
+        scope: m365Scopes.join(' '),
+        response_mode: 'query'
+      });
+      const authUrl = `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params}`;
+      return res.json({ success: true, url: authUrl, provider: 'Microsoft 365' });
+    }
+  } catch (err: any) {
+    console.error('OAuth URL error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to generate OAuth URL.' });
+  }
+});
+router.get('/oauth/url/', (req: Request, res: Response) => {
+  return res.redirect('/api/auth/oauth/url' + (req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : ''));
+});
+
+// 6. OAuth Callbacks - Must be registered BEFORE wildcard route
+router.get('/oauth/callback/google', handleProviderOAuthFlow);
+router.get('/oauth/callback/google/', handleProviderOAuthFlow);
+router.post('/oauth/callback/google', handleProviderOAuthFlow);
+router.get('/oauth/callback/microsoft', handleProviderOAuthFlow);
+router.get('/oauth/callback/microsoft/', handleProviderOAuthFlow);
+router.post('/oauth/callback/microsoft', handleProviderOAuthFlow);
+
+// 7. OAuth Provider routes (wildcard) - Must come LAST
+router.get('/:provider', (req, res, next) => {
+  const p = req.params.provider;
+  if (['signup', 'login', 'me', 'logout', 'oauth'].includes(p)) {
+    return next('route');
+  }
+  return handleProviderOAuthFlow(req, res);
+});
+router.post('/:provider', (req, res, next) => {
+  const p = req.params.provider;
+  if (['signup', 'login', 'me', 'logout', 'oauth'].includes(p)) {
+    return next('route');
+  }
+  return handleProviderOAuthFlow(req, res);
+});
+
+// 8. OAuth Callback wildcard - Must come LAST
+router.get('/callback/:provider', handleProviderOAuthFlow);
+router.post('/callback/:provider', handleProviderOAuthFlow);
+
+// 9. Deprecated SSO endpoint
+router.post('/oauth/sso', async (req: Request, res: Response) => {
+  return res.status(410).json({
+    success: false,
+    error: 'This endpoint has been disabled. Please use the real OAuth sign-in.',
+  });
+});
 
 export default router;
