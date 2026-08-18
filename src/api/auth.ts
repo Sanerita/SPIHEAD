@@ -680,18 +680,6 @@ router.get('/:provider', (req, res, next) => {
   return handleProviderOAuthFlow(req, res);
 });
 
-// Export all handlers for createApp
-export { 
-  handleRegister, 
-  handleSignup, 
-  handleLogin, 
-  handleLogout, 
-  handleGetMe, 
-  handleRefresh,
-  handleForgotPassword,
-  handleResetPassword,
-  handleVerifyEmail
-};
 
 // Export the router as default
 export default router;
