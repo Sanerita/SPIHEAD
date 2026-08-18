@@ -18,22 +18,50 @@ import { handleSignup, handleLogin } from "./api/auth.js";
 export async function createApp() {
   const app = express();
 
-  // 1. Global CORS middleware for all endpoints
+  // ============================================
+  // 1. SECURITY & CORS MIDDLEWARE
+  // ============================================
+  
+  // Trust proxy headers (important for Vercel/Heroku)
+  app.set('trust proxy', 1);
+  
+  // Global CORS middleware for all endpoints
   app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
+    // Allow requests from your frontend domain in production
+    const allowedOrigins = process.env.ALLOWED_ORIGINS 
+      ? process.env.ALLOWED_ORIGINS.split(',') 
+      : ['http://localhost:3000', 'http://localhost:5173', 'https://spihead.vercel.app'];
+    
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+    } else {
+      // Fallback for development
+      res.header('Access-Control-Allow-Origin', '*');
+    }
+    
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
     if (req.method === 'OPTIONS') {
       return res.sendStatus(200);
     }
     next();
   });
 
-  // 2. Request body parsing
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  // ============================================
+  // 2. REQUEST PARSING MIDDLEWARE
+  // ============================================
+  
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  // 3. URL normalizer middleware for non-/api routes
+  // ============================================
+  // 3. URL NORMALIZER MIDDLEWARE
+  // ============================================
+  
+  // This ensures /auth/login works the same as /api/auth/login
   app.use((req, res, next) => {
     const url = req.url || '';
     if (!url.startsWith('/api') && (
@@ -48,35 +76,47 @@ export async function createApp() {
     next();
   });
 
+  // ============================================
+  // 4. DATABASE INITIALIZATION
+  // ============================================
+  
   // Initialize Neon Postgres database tables automatically in background
-  initDbTables().catch((err) => console.warn('Init DB tables error:', err));
+  // This runs in the background and doesn't block the request
+  initDbTables().catch((err) => {
+    console.warn('⚠️ Database initialization warning (non-critical):', err.message);
+    // Don't crash the app if DB init fails - it will fall back to memory
+  });
 
-  // Mount API handlers from src/api (auth, leads, login)
+  // ============================================
+  // 5. API ROUTES
+  // ============================================
+  
+  // Mount all API handlers from src/api (auth, leads, login, mail)
   app.use('/api', apiRouter);
 
-  // Direct login/signup endpoints (for compatibility)
+  // Direct login/signup endpoints (for compatibility with frontend calls)
   app.post('/api/login', handleLogin);
   app.post('/api/signup', handleSignup);
 
+  // ============================================
+  // 6. GEMINI AI ROUTES
+  // ============================================
+  
   // Helper to initialize Gemini client lazily per request
   const getGeminiClient = () => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is missing. Please configure GEMINI_API_KEY in the Secrets panel.");
+      throw new Error("GEMINI_API_KEY is missing. Please configure GEMINI_API_KEY in your environment variables.");
     }
     return new GoogleGenAI({
       apiKey,
       httpOptions: {
         headers: {
-          'User-Agent': 'aistudio-build',
+          'User-Agent': 'spihead-crm',
         },
       },
     });
   };
-
-  // ============================================
-  // GEMINI ROUTES - MUST be defined BEFORE the 404 handler
-  // ============================================
 
   // Health / Gemini API Status Endpoint
   app.get("/api/gemini/status", (req, res) => {
@@ -85,6 +125,7 @@ export async function createApp() {
       status: "ok",
       configured: hasKey,
       model: "gemini-3.6-flash",
+      environment: process.env.NODE_ENV || 'development',
       message: hasKey
         ? "Gemini API is fully configured and ready."
         : "GEMINI_API_KEY is missing in server environment.",
@@ -98,7 +139,10 @@ export async function createApp() {
       const { lead } = req.body;
 
       if (!lead || !lead.name) {
-        return res.status(400).json({ error: "Invalid lead payload" });
+        return res.status(400).json({ 
+          success: false, 
+          error: "Invalid lead payload. 'name' is required." 
+        });
       }
 
       const prompt = `Perform a comprehensive B2B sales lead assessment for:
@@ -302,7 +346,10 @@ Provide meeting agenda, key discovery questions, and potential objection handler
       const { lead, activities, emails, meetings } = req.body;
 
       if (!lead || !lead.name) {
-        return res.status(400).json({ error: "Invalid lead payload" });
+        return res.status(400).json({ 
+          success: false, 
+          error: "Invalid lead payload. 'name' is required." 
+        });
       }
 
       const activitiesSummary = Array.isArray(activities) && activities.length > 0
@@ -429,7 +476,24 @@ Return structured JSON containing actionTitle, category, confidenceScore (number
     }
   });
 
-  // ✅ IMPORTANT: 404 handler must come AFTER all routes
+  // ============================================
+  // 7. HEALTH CHECK ENDPOINT
+  // ============================================
+  
+  app.get('/api/health', (req, res) => {
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      version: process.env.npm_package_version || '0.0.0'
+    });
+  });
+
+  // ============================================
+  // 8. ERROR HANDLING & 404
+  // ============================================
+  
+  // IMPORTANT: 404 handler must come AFTER all routes
   app.all('/api/*', apiNotFoundHandler);
   app.use(apiErrorHandler);
 
