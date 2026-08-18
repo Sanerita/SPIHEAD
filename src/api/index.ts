@@ -19,22 +19,32 @@ apiRouter.get('/health', (req: Request, res: Response) => {
   });
 });
 
-// 404 handler
-apiRouter.use((req: Request, res: Response) => {
-  res.status(404).json({
+// Export 404 handler
+export function apiNotFoundHandler(req: Request, res: Response): Response {
+  return res.status(404).json({
     success: false,
-    error: `Route ${req.method} ${req.path} not found`
+    error: `Route ${req.method} ${req.path} not found`,
+    statusCode: 404
   });
-});
+}
 
-// Error handler
-apiRouter.use((err: any, req: Request, res: Response, next: NextFunction) => {
+// Export error handler
+export function apiErrorHandler(
+  err: any,
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Response {
   console.error('API Error:', err);
-  res.status(err.status || 500).json({
+  return res.status(err.status || 500).json({
     success: false,
     error: err.message || 'Internal server error',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
-});
+}
+
+// Apply middleware to router
+apiRouter.use(apiNotFoundHandler);
+apiRouter.use(apiErrorHandler);
 
 export default apiRouter;
