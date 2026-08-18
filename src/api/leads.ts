@@ -220,6 +220,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       });
     }
 
+    // Try to get existing lead from memory first
     let existingLead = memoryLeads.get(id);
 
     // Check database if not in memory
@@ -310,20 +311,26 @@ router.delete('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    // Check if lead exists
-    const exists = memoryLeads.has(id);
+    // Check if lead exists in memory
+    let exists = memoryLeads.has(id);
+    
+    // Check database if not in memory
     if (!exists && db && isDatabaseConnected) {
       try {
         const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
-        if (result.length === 0) {
-          return res.status(404).json({
-            success: false,
-            error: 'Lead not found'
-          });
+        if (result.length > 0) {
+          exists = true;
         }
       } catch (dbErr) {
         console.warn('Database lookup error:', dbErr);
       }
+    }
+
+    if (!exists) {
+      return res.status(404).json({
+        success: false,
+        error: 'Lead not found'
+      });
     }
 
     // Delete from memory
