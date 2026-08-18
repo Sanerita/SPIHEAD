@@ -1,34 +1,62 @@
+// src/api/leads.ts
 import { Router, Request, Response } from 'express';
 import { eq } from 'drizzle-orm';
-import { db } from '../db/index.js';
+import { db, isDatabaseConnected } from '../db/index.js';
 import { leads } from '../db/schema.js';
 
 const router = Router();
 const memoryLeads = new Map<string, any>();
 
+// Helper to convert database lead to memory format
+function mapDbLeadToMemory(dbLead: any): any {
+  return {
+    ...dbLead,
+    createdAt: dbLead.createdAt instanceof Date ? dbLead.createdAt.toISOString() : dbLead.createdAt,
+    updatedAt: dbLead.updatedAt instanceof Date ? dbLead.updatedAt.toISOString() : dbLead.updatedAt,
+  };
+}
+
 // GET all leads
 router.get('/', async (req: Request, res: Response) => {
   try {
-    if (db) {
-      const dbLeads = await db.select().from(leads);
-      return res.json({
-        success: true,
-        leads: dbLeads,
-        count: dbLeads.length
-      });
+    console.log('📊 [LEADS] Fetching all leads...');
+    console.log('📊 [LEADS] Database connected:', isDatabaseConnected);
+    
+    // Try database first
+    if (db && isDatabaseConnected) {
+      try {
+        const dbLeads = await db.select().from(leads);
+        console.log(`📊 [LEADS] Found ${dbLeads.length} leads in database`);
+        
+        // Convert dates to strings for JSON response
+        const formattedLeads = dbLeads.map(mapDbLeadToMemory);
+        
+        return res.json({
+          success: true,
+          leads: formattedLeads,
+          count: formattedLeads.length,
+          source: 'Neon PostgreSQL'
+        });
+      } catch (dbErr) {
+        console.error('❌ [LEADS] Database error:', dbErr);
+        // Fall through to memory
+      }
     }
 
+    // Fallback to memory
+    console.log(`📊 [LEADS] Using memory fallback (${memoryLeads.size} leads)`);
     const leadsList = Array.from(memoryLeads.values());
     return res.json({
       success: true,
       leads: leadsList,
-      count: leadsList.length
+      count: leadsList.length,
+      source: 'In-Memory Cache'
     });
   } catch (error: any) {
-    console.error('Error fetching leads:', error);
+    console.error('❌ [LEADS] Error fetching leads:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to fetch leads'
+      error: error.message || 'Failed to fetch leads'
     });
   }
 });
@@ -38,13 +66,27 @@ router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    if (db) {
-      const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
-      if (result.length > 0) {
-        return res.json({ success: true, lead: result[0] });
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Lead ID is required'
+      });
+    }
+
+    // Try database first
+    if (db && isDatabaseConnected) {
+      try {
+        const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
+        if (result.length > 0) {
+          const lead = mapDbLeadToMemory(result[0]);
+          return res.json({ success: true, lead });
+        }
+      } catch (dbErr) {
+        console.warn(`Database error for lead ${id}:`, dbErr);
       }
     }
 
+    // Fallback to memory
     const memLead = memoryLeads.get(id);
     if (memLead) {
       return res.json({ success: true, lead: memLead });
@@ -55,7 +97,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       error: 'Lead not found'
     });
   } catch (error: any) {
-    console.error('Error fetching lead:', error);
+    console.error(`Error fetching lead ${req.params.id}:`, error);
     return res.status(500).json({
       success: false,
       error: 'Failed to fetch lead'
@@ -66,7 +108,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 // POST create lead
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { name, email, phone, company, status, notes, industry, budget, userId } = req.body;
+    const { name, email, phone, company, status, notes, industry, budget, userId, score, urgency, engagement } = req.body;
 
     // Validate required fields
     if (!name || name.trim().length < 2) {
@@ -84,8 +126,10 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const leadId = `lead_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const now = new Date().toISOString();
+    const now = new Date(); // ✅ Use Date object for database
+    const nowISO = now.toISOString(); // ✅ Use string for JSON response
 
+    // Create lead with proper date handling
     const newLead = {
       id: leadId,
       userId: userId || null,
@@ -97,17 +141,47 @@ router.post('/', async (req: Request, res: Response) => {
       notes: notes || '',
       industry: industry || '',
       budget: budget ? Number(budget) : 0,
-      createdAt: now,
-      updatedAt: now
+      score: score || 50,
+      urgency: urgency || false,
+      engagement: engagement || 1,
+      replyCount: 0,
+      createdAt: now, // ✅ Date object for database
+      updatedAt: now, // ✅ Date object for database
     };
 
-    memoryLeads.set(leadId, newLead);
+    // Store in memory with ISO strings
+    const memoryLead = {
+      ...newLead,
+      createdAt: nowISO,
+      updatedAt: nowISO,
+    };
+    memoryLeads.set(leadId, memoryLead);
 
-    if (db) {
+    // Try database
+    if (db && isDatabaseConnected) {
       try {
-        await db.insert(leads).values(newLead);
+        await db.insert(leads).values({
+          id: newLead.id,
+          userId: newLead.userId,
+          name: newLead.name,
+          email: newLead.email,
+          phone: newLead.phone,
+          company: newLead.company,
+          budget: newLead.budget,
+          status: newLead.status,
+          score: newLead.score,
+          urgency: newLead.urgency,
+          engagement: newLead.engagement,
+          replyCount: newLead.replyCount,
+          notes: newLead.notes,
+          industry: newLead.industry,
+          createdAt: newLead.createdAt, // ✅ Date object
+          updatedAt: newLead.updatedAt, // ✅ Date object
+        });
+        console.log('✅ Lead saved to database:', leadId);
       } catch (dbErr) {
         console.warn('Database save warning:', dbErr);
+        // Continue - we have memory backup
       }
     }
 
@@ -115,13 +189,13 @@ router.post('/', async (req: Request, res: Response) => {
       success: true,
       message: 'Lead created successfully',
       id: leadId,
-      lead: newLead
+      lead: memoryLead
     });
   } catch (error: any) {
     console.error('Error creating lead:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to create lead'
+      error: error.message || 'Failed to create lead'
     });
   }
 });
@@ -132,13 +206,25 @@ router.put('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const updates = req.body;
 
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Lead ID is required'
+      });
+    }
+
     let existingLead = memoryLeads.get(id);
-    
-    if (!existingLead && db) {
-      const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
-      if (result.length > 0) {
-        existingLead = result[0];
-        memoryLeads.set(id, existingLead);
+
+    // Check database if not in memory
+    if (!existingLead && db && isDatabaseConnected) {
+      try {
+        const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
+        if (result.length > 0) {
+          existingLead = mapDbLeadToMemory(result[0]);
+          memoryLeads.set(id, existingLead);
+        }
+      } catch (dbErr) {
+        console.warn('Database lookup error:', dbErr);
       }
     }
 
@@ -149,8 +235,9 @@ router.put('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    const allowedUpdates = ['name', 'email', 'phone', 'company', 'status', 'notes', 'industry', 'budget'];
-    const updatePayload: any = { updatedAt: new Date().toISOString() };
+    const allowedUpdates = ['name', 'email', 'phone', 'company', 'status', 'notes', 'industry', 'budget', 'score', 'urgency', 'engagement'];
+    const updatePayload: any = { updatedAt: new Date() }; // ✅ Date object for database
+    const updatePayloadMemory: any = { updatedAt: new Date().toISOString() }; // ✅ String for memory
 
     for (const field of allowedUpdates) {
       if (updates[field] !== undefined) {
@@ -166,16 +253,25 @@ router.put('/:id', async (req: Request, res: Response) => {
             error: 'Name must be at least 2 characters'
           });
         }
-        updatePayload[field] = field === 'budget' ? Number(updates[field]) : updates[field];
+        const value = field === 'budget' ? Number(updates[field]) : 
+                     field === 'score' ? Number(updates[field]) :
+                     field === 'engagement' ? Number(updates[field]) :
+                     field === 'urgency' ? Boolean(updates[field]) :
+                     updates[field];
+        updatePayload[field] = value;
+        updatePayloadMemory[field] = value;
       }
     }
 
-    const updatedLead = { ...existingLead, ...updatePayload };
+    const updatedLead = { ...existingLead, ...updatePayloadMemory };
     memoryLeads.set(id, updatedLead);
 
-    if (db) {
+    if (db && isDatabaseConnected) {
       try {
-        await db.update(leads).set(updatePayload).where(eq(leads.id, id));
+        await db.update(leads)
+          .set(updatePayload)
+          .where(eq(leads.id, id));
+        console.log('✅ Lead updated in database:', id);
       } catch (dbErr) {
         console.warn('Database update warning:', dbErr);
       }
@@ -190,7 +286,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     console.error('Error updating lead:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to update lead'
+      error: error.message || 'Failed to update lead'
     });
   }
 });
@@ -200,21 +296,37 @@ router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    if (!memoryLeads.has(id) && db) {
-      const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
-      if (result.length === 0) {
-        return res.status(404).json({
-          success: false,
-          error: 'Lead not found'
-        });
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Lead ID is required'
+      });
+    }
+
+    // Check if lead exists
+    const exists = memoryLeads.has(id);
+    if (!exists && db && isDatabaseConnected) {
+      try {
+        const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
+        if (result.length === 0) {
+          return res.status(404).json({
+            success: false,
+            error: 'Lead not found'
+          });
+        }
+      } catch (dbErr) {
+        console.warn('Database lookup error:', dbErr);
       }
     }
 
+    // Delete from memory
     memoryLeads.delete(id);
 
-    if (db) {
+    // Delete from database
+    if (db && isDatabaseConnected) {
       try {
         await db.delete(leads).where(eq(leads.id, id));
+        console.log('✅ Lead deleted from database:', id);
       } catch (dbErr) {
         console.warn('Database delete warning:', dbErr);
       }
@@ -228,7 +340,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     console.error('Error deleting lead:', error);
     return res.status(500).json({
       success: false,
-      error: 'Failed to delete lead'
+      error: error.message || 'Failed to delete lead'
     });
   }
 });
