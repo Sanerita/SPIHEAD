@@ -39,7 +39,7 @@ function mapDbUserToServerUser(dbU: any, req?: Request): ServerUser {
     name: dbU.name || '',
     passwordHash: dbU.passwordHash || '',
     role: dbU.role || 'User',
-    authRole: dbU.role || 'User', // Use role as fallback since auth_role doesn't exist
+    authRole: dbU.role || 'User',
     mfaEnabled: false,
     pinCode: '',
     lastLoginAt: dbU.lastLoginAt ? new Date(dbU.lastLoginAt).toISOString() : now,
@@ -88,7 +88,6 @@ export async function handleRegister(req: Request, res: Response) {
     console.log('📝 [REGISTER] Request received');
     const { fullName, email, password, companyName } = req.body;
 
-    // Validate required fields
     if (!email || !email.includes('@')) {
       return res.status(400).json({ 
         success: false, 
@@ -113,7 +112,6 @@ export async function handleRegister(req: Request, res: Response) {
     const cleanEmail = email.trim().toLowerCase();
     console.log(`📧 [REGISTER] Creating user: ${cleanEmail}`);
 
-    // Check existing user in memory
     const existingUser = findUserByEmail(cleanEmail);
     if (existingUser) {
       return res.status(409).json({
@@ -122,7 +120,6 @@ export async function handleRegister(req: Request, res: Response) {
       });
     }
 
-    // Check existing user in database
     if (db && isDatabaseConnected) {
       try {
         const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
@@ -137,13 +134,11 @@ export async function handleRegister(req: Request, res: Response) {
       }
     }
 
-    // Hash password
     const passwordHash = hashPassword(password);
     const userId = `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
     const now = new Date();
     const nowISO = now.toISOString();
 
-    // Create user object with ONLY columns that exist in database
     const user = {
       id: userId,
       email: cleanEmail,
@@ -154,11 +149,10 @@ export async function handleRegister(req: Request, res: Response) {
       jobTitle: '',
       department: '',
       selectedPlan: 'free',
-      createdAt: now,
-      updatedAt: now,
+      createdAt: nowISO,
+      updatedAt: nowISO,
     };
 
-    // Store in memory with ISO strings
     const userForMemory = {
       ...user,
       lastLoginAt: nowISO,
@@ -176,7 +170,6 @@ export async function handleRegister(req: Request, res: Response) {
     usersDb.set(cleanEmail, userForMemory);
     console.log('✅ [REGISTER] User stored in memory');
 
-    // Save to database (ONLY columns that exist)
     if (db && isDatabaseConnected) {
       try {
         console.log('💾 [REGISTER] Saving to database...');
@@ -196,13 +189,11 @@ export async function handleRegister(req: Request, res: Response) {
         console.log('✅ [REGISTER] User saved to database');
       } catch (dbErr) {
         console.error('❌ [REGISTER] Database save error:', dbErr);
-        // Don't delete from memory, but log the error
       }
     } else {
       console.log('⚠️ [REGISTER] No database connection - using memory only');
     }
 
-    // Generate verification token (optional)
     try {
       const verifyToken = createEmailVerificationToken(cleanEmail);
       await sendVerificationEmail(cleanEmail, verifyToken);
@@ -211,8 +202,6 @@ export async function handleRegister(req: Request, res: Response) {
       console.warn('⚠️ [REGISTER] Email send failed:', emailErr);
     }
 
-    // Create session
-    const clientInfo = getClientInfo(req);
     const sessionToken = createSessionToken(cleanEmail);
     const refreshToken = createRefreshToken(cleanEmail);
 
@@ -228,7 +217,6 @@ export async function handleRegister(req: Request, res: Response) {
     });
   } catch (error: any) {
     console.error('❌ [REGISTER] Registration error:', error);
-    console.error('❌ [REGISTER] Stack:', error.stack);
     return res.status(500).json({
       success: false,
       error: error.message || 'Failed to create account'
@@ -264,7 +252,6 @@ export async function handleLogin(req: Request, res: Response) {
     let user = findUserByEmail(cleanEmail);
     console.log('🔐 [LOGIN] User found in memory:', !!user);
 
-    // Check database if not in memory
     if (!user && db && isDatabaseConnected) {
       try {
         console.log('🔐 [LOGIN] Checking database...');
@@ -322,7 +309,6 @@ export async function handleLogin(req: Request, res: Response) {
       });
     }
 
-    // Verify password
     const passwordHash = hashPassword(password);
     if (passwordHash !== user.passwordHash) {
       console.log('❌ [LOGIN] Invalid password');
@@ -332,12 +318,10 @@ export async function handleLogin(req: Request, res: Response) {
       });
     }
 
-    // Update last login in memory
     user.lastLoginAt = new Date().toISOString();
     user.ipAddress = req.ip || 'unknown';
     usersDb.set(cleanEmail, user);
 
-    // Create session
     const sessionToken = createSessionToken(cleanEmail);
     const refreshToken = createRefreshToken(cleanEmail);
 
@@ -360,7 +344,7 @@ export async function handleLogin(req: Request, res: Response) {
 }
 
 /**
- * POST /api/auth/signup - Alias for register (for compatibility)
+ * POST /api/auth/signup - Alias for register
  */
 export async function handleSignup(req: Request, res: Response) {
   return handleRegister(req, res);
@@ -687,11 +671,7 @@ router.get('/oauth/url', (req: Request, res: Response) => {
       const clientId = process.env.GOOGLE_CLIENT_ID;
       const redirectUri = `${appUrl}/api/auth/oauth/callback/google`;
       
-      const googleScopes = [
-        'openid',
-        'profile',
-        'email'
-      ];
+      const googleScopes = ['openid', 'profile', 'email'];
       
       const params = new URLSearchParams({
         client_id: clientId || 'demo-client-id',
@@ -706,12 +686,7 @@ router.get('/oauth/url', (req: Request, res: Response) => {
       const clientId = process.env.MICROSOFT_CLIENT_ID;
       const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
       const redirectUri = `${appUrl}/api/auth/oauth/callback/microsoft`;
-      const m365Scopes = [
-        'openid',
-        'profile',
-        'email',
-        'User.Read'
-      ];
+      const m365Scopes = ['openid', 'profile', 'email', 'User.Read'];
       const params = new URLSearchParams({
         client_id: clientId || 'demo-client-id',
         redirect_uri: redirectUri,
