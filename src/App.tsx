@@ -15,6 +15,7 @@ import { ProfileView } from './views/ProfileView';
 import { LandingPageView } from './views/LandingPageView';
 import { SignUpView } from './views/SignUpView';
 import { subscriptionService } from './lib/subscriptionService';
+import { SignUpView } from './views/SignUpView';
 
 import { AddLeadModal } from './components/AddLeadModal';
 import { ScheduleMeetingModal } from './components/ScheduleMeetingModal';
