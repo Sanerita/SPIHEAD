@@ -13,9 +13,9 @@ import { M365HubView } from './views/M365HubView';
 import { SettingsView } from './views/SettingsView';
 import { ProfileView } from './views/ProfileView';
 import { LandingPageView } from './views/LandingPageView';
-import { SignUpView } from './views/SignUpView';
+import SignUpView from './views/SignUpView';
 import { subscriptionService } from './lib/subscriptionService';
-import { SignUpView } from './views/SignUpView';
+
 
 import { AddLeadModal } from './components/AddLeadModal';
 import { ScheduleMeetingModal } from './components/ScheduleMeetingModal';
