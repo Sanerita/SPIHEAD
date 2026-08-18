@@ -186,18 +186,25 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
       if (db && isDatabaseConnected) {
         try {
           const now = new Date();
+          const nowISO = now.toISOString();
+          
+          // ✅ FIX: Only insert columns that exist in the database
           await db.insert(users).values({
             id: user.id,
             name: user.name,
             email: user.email,
             role: user.role,
+            // ✅ Removed: authRole, companySize, ipAddress, mfaEnabled, pinCode, 
+            // lastLoginAt, isActive, emailVerified, failedLoginAttempts, lockedUntil, lastPasswordChange
+            company: user.companyName,
             passwordHash: user.passwordHash,
-            createdAt: now,
-            updatedAt: now,
-            isActive: user.isActive,
-            emailVerified: user.emailVerified,
-            ipAddress: user.ipAddress
+            jobTitle: user.jobTitle,
+            department: user.department,
+            selectedPlan: user.selectedPlan,
+            createdAt: nowISO,
+            updatedAt: nowISO,
           });
+          console.log('✅ [OAUTH] User saved to database');
         } catch (dbErr) {
           console.error('Failed to save OAuth user to database:', dbErr);
         }
@@ -210,7 +217,7 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
       });
     }
 
-    // ✅ FIX: Use only the email parameter (remove ip and userAgent if not supported)
+    // ✅ FIX: Use only the email parameter
     const sessionToken = createSessionToken(cleanEmail);
     const refreshToken = createRefreshToken(cleanEmail);
 
