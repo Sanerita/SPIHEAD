@@ -75,6 +75,21 @@ export async function initDbTables() {
       );
     `;
 
+    await sql`
+      CREATE TABLE IF NOT EXISTS oauth_tokens (
+        id TEXT PRIMARY KEY,
+        user_email TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        access_token TEXT NOT NULL,
+        refresh_token TEXT,
+        expires_at TIMESTAMP NOT NULL,
+        scope TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_oauth_tokens_user_provider ON oauth_tokens (user_email, provider);`;
+
     // 2. Safely add any missing columns to existing tables (migrations)
     // Users columns
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT;`;
