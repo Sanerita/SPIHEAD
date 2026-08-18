@@ -185,7 +185,8 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
         try {
           const nowISO = new Date().toISOString();
           
-          await db.insert(users).values({
+          // ✅ Use type assertion for database insert
+          const insertValues = {
             id: user.id,
             name: user.name,
             email: user.email,
@@ -197,7 +198,8 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
             selectedPlan: user.selectedPlan,
             createdAt: nowISO,
             updatedAt: nowISO,
-          });
+          };
+          await db.insert(users).values(insertValues as any);
           console.log('✅ [OAUTH] User saved to database');
         } catch (dbErr) {
           console.error('Failed to save OAuth user to database:', dbErr);
