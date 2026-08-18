@@ -53,6 +53,10 @@ export async function createApp() {
   // Mount API handlers from src/api (auth, leads, login)
   app.use('/api', apiRouter);
 
+  // Direct login/signup endpoints (for compatibility)
+  app.post('/api/login', handleLogin);
+  app.post('/api/signup', handleSignup);
+
   // Helper to initialize Gemini client lazily per request
   const getGeminiClient = () => {
     const apiKey = process.env.GEMINI_API_KEY;
