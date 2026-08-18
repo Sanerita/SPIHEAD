@@ -1,13 +1,15 @@
 import { Router, Request, Response } from 'express';
-import { handleSignup } from './auth.js';
-
-export { handleSignup };
+import { handleRegister } from './auth.js';
 
 const router = Router();
-router.post('/', handleSignup);
-router.post('/signup', handleSignup);
-router.get(['/', '/signup'], (req: Request, res: Response) => {
-  return res.json({ success: true, message: 'SPIHEAD Authentication Signup API endpoint active. Use POST to register.' });
+
+router.post('/', handleRegister);
+router.post('/signup', handleRegister);
+router.get('/', (req: Request, res: Response) => {
+  return res.json({
+    success: true,
+    message: 'Signup API endpoint. Use POST to register.'
+  });
 });
 
 export default router;
