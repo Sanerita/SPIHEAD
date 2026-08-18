@@ -22,15 +22,11 @@ router.get('/', async (req: Request, res: Response) => {
     console.log('📊 [LEADS] Fetching all leads...');
     console.log('📊 [LEADS] Database connected:', isDatabaseConnected);
 
-    // Try database first
     if (db && isDatabaseConnected) {
       try {
         const dbLeads = await db.select().from(leads);
         console.log(`📊 [LEADS] Found ${dbLeads.length} leads in database`);
-
-        // Convert dates to strings for JSON response
         const formattedLeads = dbLeads.map(mapDbLeadToMemory);
-
         return res.json({
           success: true,
           leads: formattedLeads,
@@ -39,11 +35,9 @@ router.get('/', async (req: Request, res: Response) => {
         });
       } catch (dbErr) {
         console.error('❌ [LEADS] Database error:', dbErr);
-        // Fall through to memory
       }
     }
 
-    // Fallback to memory
     console.log(`📊 [LEADS] Using memory fallback (${memoryLeads.size} leads)`);
     const leadsList = Array.from(memoryLeads.values());
     return res.json({
@@ -73,7 +67,6 @@ router.get('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    // Try database first
     if (db && isDatabaseConnected) {
       try {
         const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
@@ -86,7 +79,6 @@ router.get('/:id', async (req: Request, res: Response) => {
       }
     }
 
-    // Fallback to memory
     const memLead = memoryLeads.get(id);
     if (memLead) {
       return res.json({ success: true, lead: memLead });
@@ -105,7 +97,7 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// POST create lead - PRODUCTION READY with Neon DB persistence
+// POST create lead
 router.post('/', async (req: Request, res: Response) => {
   try {
     const { 
@@ -113,7 +105,6 @@ router.post('/', async (req: Request, res: Response) => {
       budget, userId, score, urgency, engagement, tags 
     } = req.body;
 
-    // Validate required fields
     if (!name || name.trim().length < 2) {
       return res.status(400).json({
         success: false,
@@ -151,7 +142,6 @@ router.post('/', async (req: Request, res: Response) => {
       updatedAt: now,
     };
 
-    // ✅ ALWAYS try to save to database first
     let dbSaved = false;
     if (db && isDatabaseConnected) {
       try {
@@ -178,11 +168,9 @@ router.post('/', async (req: Request, res: Response) => {
         console.log('✅ Lead saved to Neon DB:', leadId);
       } catch (dbErr) {
         console.error('❌ Database save error:', dbErr);
-        // Continue with memory fallback
       }
     }
 
-    // Store in memory as fallback
     const memoryLead = {
       ...newLead,
       createdAt: newLead.createdAt.toISOString(),
@@ -220,10 +208,8 @@ router.put('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    // Try to get existing lead from memory first
     let existingLead = memoryLeads.get(id);
 
-    // Check database if not in memory
     if (!existingLead && db && isDatabaseConnected) {
       try {
         const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
@@ -311,10 +297,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    // Check if lead exists in memory
     let exists = memoryLeads.has(id);
     
-    // Check database if not in memory
     if (!exists && db && isDatabaseConnected) {
       try {
         const result = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
@@ -333,10 +317,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    // Delete from memory
     memoryLeads.delete(id);
 
-    // Delete from database
     if (db && isDatabaseConnected) {
       try {
         await db.delete(leads).where(eq(leads.id, id));
