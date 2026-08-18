@@ -1,5 +1,5 @@
 // src/db/init.ts
-import { sql, isDatabaseConnected, getDbStatus } from './index.js';
+import { sql, isDatabaseConnected, getDbStatus, testConnection } from './index.js';
 
 // ============================================
 // TABLE DEFINITIONS
@@ -266,16 +266,6 @@ const INDEXES = [
 // MIGRATION FUNCTIONS
 // ============================================
 
-async function runMigration(sqlQuery: string) {
-  try {
-    await sql`EXECUTE IMMEDIATE ${sqlQuery}`;
-    return true;
-  } catch (error) {
-    // Column might already exist or be in a different state
-    return false;
-  }
-}
-
 async function addColumnIfNotExists(table: string, column: string, definition: string) {
   try {
     await sql`
@@ -304,6 +294,13 @@ export async function initDbTables() {
 
   if (!process.env.DATABASE_URL) {
     console.warn('⚠️ [DB] No DATABASE_URL set, skipping table initialization.');
+    return false;
+  }
+
+  // Test connection first
+  const connected = await testConnection();
+  if (!connected) {
+    console.warn('⚠️ [DB] Connection test failed, skipping initialization.');
     return false;
   }
 
@@ -397,7 +394,12 @@ export async function checkDbHealth(): Promise<{
   // Check each table
   for (const tableName of Object.keys(TABLES)) {
     try {
-      const query = await sql`SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = ${tableName})`;
+      const query = await sql`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_name = ${tableName}
+        )
+      `;
       result.tables[tableName] = query[0]?.exists || false;
     } catch (error) {
       result.tables[tableName] = false;
@@ -408,16 +410,11 @@ export async function checkDbHealth(): Promise<{
 }
 
 // ============================================
-// AUTO-INITIALIZE IN DEVELOPMENT
+// AUTO-INITIALIZE IN DEVELOPMENT (REMOVED TOP-LEVEL AWAIT)
 // ============================================
 
-// Auto-initialize in development
-if (process.env.NODE_ENV === 'development' && isDatabaseConnected) {
-  console.log('🔄 [DB] Auto-initializing in development mode...');
-  initDbTables().catch((err) => {
-    console.warn('⚠️ [DB] Auto-initialization failed:', err);
-  });
-}
+// We removed the auto-initialization here to avoid top-level await.
+// Instead, it will be called from createApp.ts
 
 // ============================================
 // EXPORTS
