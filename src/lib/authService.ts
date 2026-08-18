@@ -1,7 +1,6 @@
 import { AppUser, UserRole, SecurityAuditLog, SecuritySettings } from '../types/crm';
 import { companyService } from './companyService';
 import { m365Service } from './m365Service';
-import { apiClient } from './apiClient';
 
 export const M365_OAUTH_SCOPES = [
   'openid',
@@ -111,6 +110,10 @@ class AuthService {
   private securitySettings: SecuritySettings = DEFAULT_SECURITY_SETTINGS;
   private listeners: (() => void)[] = [];
 
+  getSessionToken(): string | null {
+    return this.sessionToken;
+  }
+
   constructor() {
     this.loadState();
     this.verifyBackendSession();
@@ -166,20 +169,28 @@ class AuthService {
   private async verifyBackendSession() {
     if (!this.sessionToken) return;
     try {
-      const data = await apiClient.get('/api/auth/me', { silent: true });
-      if (data && data.success && data.user) {
-        this.currentUser = data.user;
-        this.isAuthenticated = true;
-        this.saveState();
-        this.notify();
+      const res = await fetch('/api/auth/me', {
+        headers: {
+          Authorization: `Bearer ${this.sessionToken}`
+        }
+      });
+      if (res.ok) {
+        const text = await res.text();
+        let data: any = null;
+        try { data = JSON.parse(text); } catch {}
+        if (data && data.success && data.user) {
+          this.currentUser = data.user;
+          this.isAuthenticated = true;
+          this.saveState();
+          this.notify();
+        } else {
+          this.clearSession();
+        }
       } else {
         this.clearSession();
       }
-    } catch (err: any) {
+    } catch (err) {
       console.warn('Backend session check skipped or offline:', err);
-      if (err?.statusCode === 401 || err?.statusCode === 403) {
-        this.clearSession();
-      }
     }
   }
 
@@ -277,35 +288,43 @@ class AuthService {
   public async login(email: string, role: UserRole = 'Admin', password?: string): Promise<boolean> {
     const cleanEmail = sanitizeInput(email.trim().toLowerCase());
     
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, password, role })
+    });
+
+    const text = await res.text();
+    let data: any = null;
     try {
-      const data = await apiClient.post('/api/auth/login', { email: cleanEmail, password, role });
-
-      if (data && data.success) {
-        this.sessionToken = data.token;
-        this.currentUser = data.user;
-        this.isAuthenticated = true;
-        this.isLocked = false;
-
-        this.logAuditEvent(
-          'User Authentication Sign-In',
-          'Authentication',
-          'Info',
-          `Session authorized for ${cleanEmail} with role [${role}]`
-        );
-
-        this.saveState();
-        this.notify();
-        return true;
-      }
-
-      if (data && data.error) {
-        throw new Error(data.error);
-      }
-
-      throw new Error('Authentication failed. Please check your email and password.');
-    } catch (err) {
-      throw err;
+      data = JSON.parse(text);
+    } catch {
+      // Non-JSON response received from server or proxy
     }
+
+    if (res.ok && data && data.success) {
+      this.sessionToken = data.token;
+      this.currentUser = data.user;
+      this.isAuthenticated = true;
+      this.isLocked = false;
+
+      this.logAuditEvent(
+        'User Authentication Sign-In',
+        'Authentication',
+        'Info',
+        `Session authorized for ${cleanEmail} with role [${role}]`
+      );
+
+      this.saveState();
+      this.notify();
+      return true;
+    }
+
+    if (data && data.error) {
+      throw new Error(data.error);
+    }
+
+    throw new Error('Authentication failed. Please check your email and password.');
   }
 
   public async register(details: {
@@ -321,8 +340,10 @@ class AuthService {
     const cleanEmail = sanitizeInput(details.email.trim().toLowerCase());
     const cleanCompany = sanitizeInput(details.companyName.trim());
 
-    try {
-      const data = await apiClient.post('/api/auth/signup', {
+    const res = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         fullName: cleanName,
         email: cleanEmail,
         companyName: cleanCompany,
@@ -330,42 +351,71 @@ class AuthService {
         role: details.role || 'Admin',
         selectedPlan: details.selectedPlan,
         password: details.password || 'Password123!'
-      });
+      })
+    });
 
-      if (data && data.success) {
-        this.sessionToken = data.token;
-        this.currentUser = data.user;
-        this.isAuthenticated = true;
-        this.isLocked = false;
-
-        this.logAuditEvent(
-          'New Account Workspace Registration',
-          'Authentication',
-          'Info',
-          `New enterprise workspace created for "${cleanCompany}" by ${cleanName} (${cleanEmail}). Plan: ${details.selectedPlan || 'Small Business'}`
-        );
-
-        this.saveState();
-        this.notify();
-        return true;
-      }
-
-      if (data && data.error) {
-        throw new Error(data.error);
-      }
-
-      throw new Error('Registration failed. Please check your information and try again.');
-    } catch (err) {
-      throw err;
+    const text = await res.text();
+    let data: any = null;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Non-JSON response received
     }
+
+    if (res.ok && data && data.success) {
+      this.sessionToken = data.token;
+      this.currentUser = data.user;
+      this.isAuthenticated = true;
+      this.isLocked = false;
+
+      this.logAuditEvent(
+        'New Account Workspace Registration',
+        'Authentication',
+        'Info',
+        `New enterprise workspace created for "${cleanCompany}" by ${cleanName} (${cleanEmail}). Plan: ${details.selectedPlan || 'Small Business'}`
+      );
+
+      this.saveState();
+      this.notify();
+      return true;
+    }
+
+    if (data && data.error) {
+      throw new Error(data.error);
+    }
+
+    throw new Error('Registration failed. Please check your information and try again.');
   }
 
   public async loginWithOAuthProvider(provider: 'google' | 'microsoft', emailHint?: string): Promise<boolean> {
     return new Promise(async (resolve, reject) => {
-      try {
-        const resJson = await apiClient.get(`/api/auth/oauth/url?provider=${provider}`);
+      // Open the popup SYNCHRONOUSLY, before any `await`, so browsers still
+      // recognize this as a direct result of the user's click and don't
+      // silently block it. We navigate this blank window to the real OAuth
+      // URL once we've fetched it.
+      const authWindow = window.open(
+        'about:blank',
+        `${provider}_oauth_popup`,
+        'width=600,height=700,scrollbars=yes'
+      );
 
-        if (!resJson || !resJson.url) {
+      if (!authWindow) {
+        reject(
+          new Error(
+            `Your browser blocked the ${provider === 'google' ? 'Google' : 'Microsoft 365'} sign-in popup. Please allow popups for this site and try again.`
+          )
+        );
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/auth/oauth/url?provider=${provider}`);
+        const resText = await res.text();
+        let resJson: any = null;
+        try { resJson = JSON.parse(resText); } catch {}
+
+        if (!res.ok || !resJson || !resJson.url) {
+          authWindow.close();
           throw new Error(`Failed to get OAuth authorization URL for ${provider}`);
         }
         const { url } = resJson;
@@ -396,55 +446,25 @@ class AuthService {
 
         window.addEventListener('message', handleMessage);
 
-        const authWindow = window.open(url, `${provider}_oauth_popup`, 'width=600,height=700,scrollbars=yes');
+        // Navigate the already-open window to the real Microsoft/Google
+        // consent screen now that we have it.
+        authWindow.location.href = url;
 
-        if (!authWindow) {
-          console.warn('OAuth popup blocked by browser, falling back to direct OAuth SSO endpoint...');
-          const ssoData = await apiClient.post('/api/auth/oauth/sso', { provider, email: emailHint });
-          if (ssoData && ssoData.success && ssoData.token) {
-            this.sessionToken = ssoData.token;
-            this.currentUser = ssoData.user;
-            this.isAuthenticated = true;
-            this.isLocked = false;
-            this.saveState();
-            this.notify();
-            window.removeEventListener('message', handleMessage);
-            return resolve(true);
-          }
-          throw new Error('OAuth popup was blocked by browser settings.');
-        }
-
-        const popupTimer = setInterval(async () => {
-          let isClosed = false;
-          try {
-            isClosed = authWindow.closed;
-          } catch (e) {
-            isClosed = false;
-          }
-          if (isClosed) {
+        const popupTimer = setInterval(() => {
+          if (authWindow.closed) {
             clearInterval(popupTimer);
             if (!this.isAuthenticated) {
-              try {
-                const ssoData = await apiClient.post('/api/auth/oauth/sso', { provider, email: emailHint }, { silent: true });
-                if (ssoData && ssoData.success && ssoData.token) {
-                  this.sessionToken = ssoData.token;
-                  this.currentUser = ssoData.user;
-                  this.isAuthenticated = true;
-                  this.isLocked = false;
-                  this.saveState();
-                  this.notify();
-                  window.removeEventListener('message', handleMessage);
-                  return resolve(true);
-                }
-              } catch (err) {
-                // Ignore fallback error
-              }
               window.removeEventListener('message', handleMessage);
-              reject(new Error(`${provider === 'google' ? 'Google Workspace' : 'Microsoft 365'} authentication window was closed.`));
+              reject(
+                new Error(
+                  `${provider === 'google' ? 'Google Workspace' : 'Microsoft 365'} sign-in was cancelled or the window was closed before completing.`
+                )
+              );
             }
           }
         }, 1000);
       } catch (err: any) {
+        if (authWindow && !authWindow.closed) authWindow.close();
         reject(err);
       }
     });
@@ -465,7 +485,10 @@ class AuthService {
   public async logout(): Promise<void> {
     if (this.sessionToken && !this.sessionToken.startsWith('tok_fallback_')) {
       try {
-        await apiClient.post('/api/auth/logout', {}, { silent: true });
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${this.sessionToken}` }
+        });
       } catch (e) {
         // Ignore logout fetch errors
       }
