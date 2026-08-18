@@ -34,6 +34,18 @@ export const leads = pgTable('leads', {
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
+export const oauthTokens = pgTable('oauth_tokens', {
+  id: text('id').primaryKey(),
+  userEmail: text('user_email').notNull(),
+  provider: text('provider').notNull(), // 'microsoft' | 'google'
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token'),
+  expiresAt: timestamp('expires_at').notNull(),
+  scope: text('scope'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 export const meetings = pgTable('meetings', {
   id: text('id').primaryKey(),
   userId: text('user_id'),
