@@ -1,116 +1,157 @@
-// src/api/index.ts
-import { Router, Request, Response, NextFunction } from 'express';
-import authRouter from './auth.js';
-import leadsRouter from './leads.js';
-import mailRouter from './mail.js';
-
-const apiRouter = Router();
+// src/db/index.ts
+import 'dotenv/config';
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
+import * as schema from './schema.js';
 
 // ============================================
-// ROUTE MOUNTING
+// TYPE DEFINITIONS
 // ============================================
 
-// Mount all route modules
-apiRouter.use('/auth', authRouter);
-apiRouter.use('/leads', leadsRouter);
-apiRouter.use('/mail', mailRouter);
+export type DbClient = ReturnType<typeof drizzle>;
+export type SqlClient = ReturnType<typeof neon>;
 
 // ============================================
-// HEALTH CHECK
+// CONNECTION STRING
 // ============================================
 
-apiRouter.get('/health', (req: Request, res: Response) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    version: '1.0.0'
-  });
-});
+const connectionString = process.env.DATABASE_URL || '';
 
 // ============================================
-// API STATUS
+// FALLBACK STUB FOR UNCONFIGURATED DATABASE
 // ============================================
 
-apiRouter.get('/status', (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    message: 'SPIHEAD API is running',
-    timestamp: new Date().toISOString(),
-    routes: {
-      auth: '/api/auth',
-      leads: '/api/leads',
-      mail: '/api/mail',
-      health: '/api/health'
-    }
-  });
-});
-
-// ============================================
-// 404 NOT FOUND HANDLER
-// ============================================
-
-export function apiNotFoundHandler(req: Request, res: Response): Response {
-  return res.status(404).json({
-    success: false,
-    error: `Route ${req.method} ${req.path} not found`,
-    statusCode: 404,
-    timestamp: new Date().toISOString()
-  });
-}
-
-// ============================================
-// GLOBAL ERROR HANDLER
-// ============================================
-
-export function apiErrorHandler(
-  err: any,
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Response {
-  // Log the error with details
-  console.error('❌ [API Error]', {
-    method: req.method,
-    path: req.path,
-    ip: req.ip,
-    error: err.message,
-    stack: err.stack
-  });
-
-  // Determine status code
-  const statusCode = err.status || err.statusCode || 500;
-  
-  // Build error response
-  const errorResponse: any = {
-    success: false,
-    error: err.message || 'Internal server error',
-    statusCode: statusCode,
-    timestamp: new Date().toISOString()
+function createUnconfiguredStub() {
+  const fail = (method?: string) => {
+    throw new Error(
+      `Database is not available (DATABASE_URL missing or invalid). Falling back to in-memory storage.${method ? ` Called method: ${method}` : ''}`
+    );
   };
 
-  // Add stack trace in development only
-  if (process.env.NODE_ENV === 'development') {
-    errorResponse.stack = err.stack;
-    errorResponse.details = err.details || null;
-  }
-
-  return res.status(statusCode).json(errorResponse);
+  return new Proxy(() => {}, {
+    get: (target, prop) => {
+      if (prop === 'then' || prop === 'catch' || prop === 'finally') {
+        return undefined;
+      }
+      return () => fail(String(prop));
+    },
+    apply: () => fail('apply'),
+  });
 }
 
 // ============================================
-// APPLY MIDDLEWARE
+// DATABASE CLIENT INITIALIZATION
 // ============================================
 
-// Apply 404 handler - catches all unmatched routes
-apiRouter.use(apiNotFoundHandler);
+let sqlClient: SqlClient | null = null;
+let dbClient: DbClient | null = null;
+let isConnected = false;
+let connectionError: Error | null = null;
 
-// Apply error handler - catches all errors
-apiRouter.use(apiErrorHandler);
+try {
+  if (connectionString && connectionString.startsWith('postgresql://')) {
+    console.log('🔌 [DB] Connecting to Neon PostgreSQL...');
+    
+    sqlClient = neon(connectionString);
+    dbClient = drizzle(sqlClient, { schema });
+    isConnected = true;
+    console.log('✅ [DB] Client initialized successfully');
+  } else {
+    console.warn('⚠️ [DB] DATABASE_URL is not set or invalid — running with in-memory storage only.');
+    console.warn('   Expected format: postgresql://username:password@host:port/database');
+    sqlClient = null;
+    dbClient = null;
+  }
+} catch (err) {
+  console.error('❌ [DB] Failed to initialize Neon DB client:', err);
+  if (err instanceof Error) {
+    connectionError = err;
+  }
+  sqlClient = null;
+  dbClient = null;
+}
+
+// ============================================
+// ASYNC CONNECTION TESTER
+// ============================================
+
+export async function testConnection(): Promise<boolean> {
+  if (!dbClient || !isConnected) {
+    return false;
+  }
+
+  try {
+    await dbClient.select().from(schema.users).limit(1);
+    console.log('✅ [DB] Connection verified successfully');
+    return true;
+  } catch (error) {
+    console.warn('⚠️ [DB] Connection test failed:', error);
+    return false;
+  }
+}
 
 // ============================================
 // EXPORTS
 // ============================================
 
-export default apiRouter;
-export { apiRouter };
+export const sql: SqlClient | null = sqlClient;
+export const db: DbClient | null = dbClient;
+export const isDatabaseConnected = isConnected;
+export const getConnectionError = () => connectionError;
+
+export function getDbStatus() {
+  return {
+    connected: !!dbClient && isConnected,
+    hasConnectionString: !!connectionString,
+    clientInitialized: !!dbClient,
+    connectionString: connectionString ? '***hidden***' : 'not set',
+    error: connectionError?.message || null,
+  };
+}
+
+export async function withDb<T>(
+  operation: (db: DbClient) => Promise<T>,
+  fallbackValue?: T
+): Promise<T | undefined> {
+  if (!dbClient || !isConnected) {
+    console.warn('⚠️ [DB] Database not available, using fallback');
+    return fallbackValue;
+  }
+  
+  try {
+    return await operation(dbClient);
+  } catch (error) {
+    console.error('❌ [DB] Database operation failed:', error);
+    throw error;
+  }
+}
+
+export * from './schema.js';
+
+// ============================================
+// AUTO-INITIALIZE IN DEVELOPMENT
+// ============================================
+
+if (process.env.NODE_ENV === 'development' && !process.env.VITE_BUILD) {
+  import('./init.js').then(({ initDbTables }) => {
+    console.log('🔄 [DB] Auto-initializing in development mode...');
+    initDbTables().catch((err) => {
+      console.warn('⚠️ [DB] Auto-initialization failed:', err);
+    });
+  });
+}
+
+// ============================================
+// DEFAULT EXPORT
+// ============================================
+
+export default {
+  sql,
+  db,
+  isDatabaseConnected,
+  getDbStatus,
+  getConnectionError,
+  testConnection,
+  withDb,
+  schema,
+};
