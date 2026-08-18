@@ -3,6 +3,9 @@ import path from "path";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import { createApp } from "./src/createApp.js";
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = await createApp();
