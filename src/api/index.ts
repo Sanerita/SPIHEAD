@@ -1,18 +1,40 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import authRouter from './auth.js';
-import loginRouter from './login.js';
-import signupRouter from './signup.js';
 import leadsRouter from './leads.js';
-import { apiErrorHandler, apiNotFoundHandler } from './utils.js';
+import mailRouter from './mail.js';
 
 const apiRouter = Router();
 
+// Mount routes
 apiRouter.use('/auth', authRouter);
-apiRouter.use('/login', loginRouter);
-apiRouter.use('/signup', signupRouter);
 apiRouter.use('/leads', leadsRouter);
+apiRouter.use('/mail', mailRouter);
 
-export * from './utils.js';
-export { apiRouter, apiErrorHandler, apiNotFoundHandler };
+// Health check
+apiRouter.get('/health', (req: Request, res: Response) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// 404 handler
+apiRouter.use((req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    error: `Route ${req.method} ${req.path} not found`
+  });
+});
+
+// Error handler
+apiRouter.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error('API Error:', err);
+  res.status(err.status || 500).json({
+    success: false,
+    error: err.message || 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+});
+
 export default apiRouter;
-
