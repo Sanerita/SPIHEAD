@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema.js';
 import { usersDb, activeSessions, ServerUser, createSessionToken } from '../sessionStore.js';
+import { saveOAuthToken } from '../../lib/graphMailService.server.js';
 
 const router = Router();
 
@@ -123,6 +124,24 @@ export async function exchangeOAuthCode(
           const userData = await userRes.json();
           if (userData.userPrincipalName || userData.mail) {
             const email = userData.mail || userData.userPrincipalName;
+
+            // Persist the access/refresh token so we can send real email via
+            // Graph later, without requiring the user to re-authenticate.
+            if (tokenData.access_token) {
+              try {
+                await saveOAuthToken(
+                  email,
+                  'microsoft',
+                  tokenData.access_token,
+                  tokenData.refresh_token,
+                  tokenData.expires_in || 3600,
+                  'openid profile email offline_access User.Read Mail.Send'
+                );
+              } catch (tokenSaveErr) {
+                console.warn('Failed to persist Microsoft OAuth token:', tokenSaveErr);
+              }
+            }
+
             return {
               email,
               name: userData.displayName || email.split('@')[0],
