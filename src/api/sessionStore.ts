@@ -85,16 +85,16 @@ export interface ServerUser {
 //   }
 // ];
 
-export const usersDb = new Map<string, ServerUser>();
-SEED_USERS.forEach((u) => usersDb.set(u.email.toLowerCase(), u));
+// export const usersDb = new Map<string, ServerUser>();
+// SEED_USERS.forEach((u) => usersDb.set(u.email.toLowerCase(), u));
 
-export const activeSessions = new Map<string, { userEmail: string; expiresAt: number }>();
+// export const activeSessions = new Map<string, { userEmail: string; expiresAt: number }>();
 
-const SECRET_KEY = process.env.SESSION_SECRET || process.env.DATABASE_URL || 'spihead-enterprise-session-signing-key-2026';
+// const SECRET_KEY = process.env.SESSION_SECRET || process.env.DATABASE_URL || 'spihead-enterprise-session-signing-key-2026';
 
-function hmacSign(data: string): string {
-  return crypto.createHmac('sha256', SECRET_KEY).update(data).digest('hex');
-}
+// function hmacSign(data: string): string {
+//   return crypto.createHmac('sha256', SECRET_KEY).update(data).digest('hex');
+// }
 
 /**
  * Creates a stateless signed session token that works seamlessly across serverless instances and cold starts.
