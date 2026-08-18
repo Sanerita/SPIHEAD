@@ -8,29 +8,55 @@ import { saveOAuthToken } from '../../lib/graphMailService.server.js';
 
 const router = Router();
 
-// Helper function to ensure all required fields are present
-function ensureServerUser(userData: any): ServerUser {
+// Helper to map database user to ServerUser
+function mapDbUserToServerUser(dbU: any, provider: string, req?: Request): ServerUser {
   const now = new Date().toISOString();
   return {
-    id: userData.id || `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`,
-    email: userData.email.toLowerCase(),
-    name: userData.name || 'User',
-    passwordHash: userData.passwordHash || crypto.createHash('sha256').update('OAuthPass123!').digest('hex'),
-    role: userData.role || 'Admin',
-    authRole: userData.authRole || userData.role || 'Admin',
-    mfaEnabled: userData.mfaEnabled !== undefined ? userData.mfaEnabled : true,
-    pinCode: userData.pinCode || '1234',
-    lastLoginAt: userData.lastLoginAt || now,
-    jobTitle: userData.jobTitle || `${userData.provider || 'OAuth'} Administrator`,
-    department: userData.department || 'Executive Operations',
-    ipAddress: userData.ipAddress || '127.0.0.1',
-    companyName: userData.companyName || '',
-    companySize: userData.companySize || '',
-    selectedPlan: userData.selectedPlan || 'enterprise',
-    createdAt: userData.createdAt || now,
-    updatedAt: userData.updatedAt || now,
-    isActive: userData.isActive !== undefined ? userData.isActive : true,
-    emailVerified: userData.emailVerified !== undefined ? userData.emailVerified : true // OAuth users are verified
+    id: dbU.id,
+    email: dbU.email.toLowerCase(),
+    name: dbU.name || '',
+    passwordHash: dbU.passwordHash || '',
+    role: dbU.role || 'User',
+    authRole: dbU.authRole || dbU.role || 'User',
+    mfaEnabled: dbU.mfaEnabled || false,
+    pinCode: dbU.pinCode || '',
+    lastLoginAt: dbU.lastLoginAt || now,
+    jobTitle: dbU.jobTitle || '',
+    department: dbU.department || '',
+    ipAddress: req?.ip || dbU.ipAddress || 'unknown',
+    companyName: dbU.companyName || dbU.company || '',
+    companySize: dbU.companySize || '',
+    selectedPlan: dbU.selectedPlan || 'free',
+    createdAt: dbU.createdAt || now,
+    updatedAt: dbU.updatedAt || now,
+    isActive: dbU.isActive !== undefined ? dbU.isActive : true,
+    emailVerified: true // OAuth users are verified by the provider
+  };
+}
+
+// Helper to create new OAuth user
+function createOAuthUser(profile: UserProfile, req?: Request): ServerUser {
+  const now = new Date().toISOString();
+  return {
+    id: `usr_oauth_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`,
+    email: profile.email.toLowerCase(),
+    name: profile.name || profile.email.split('@')[0],
+    passwordHash: '', // OAuth users don't have passwords
+    role: 'User',
+    authRole: 'User',
+    mfaEnabled: false,
+    pinCode: '',
+    lastLoginAt: now,
+    jobTitle: '',
+    department: '',
+    ipAddress: req?.ip || 'unknown',
+    companyName: '',
+    companySize: '',
+    selectedPlan: 'free',
+    createdAt: now,
+    updatedAt: now,
+    isActive: true,
+    emailVerified: true // OAuth users are verified
   };
 }
 
@@ -56,7 +82,6 @@ interface UserProfile {
  */
 export function verifyOAuthState(state?: string): boolean {
   if (!state) return true; // Allow state-less fallback in demo mode
-  // Basic validation on state parameter formatting
   if (typeof state !== 'string' || state.length < 4) {
     return false;
   }
@@ -113,15 +138,12 @@ export async function exchangeOAuthCode(
           }
         }
       } catch (err) {
-        console.warn('Google OAuth token exchange fallback triggered:', err);
+        console.warn('Google OAuth token exchange failed:', err);
+        throw new Error('Failed to authenticate with Google. Please try again.');
       }
     }
 
-    return {
-      email: 'google.workspace@spihead.com',
-      name: 'Google Workspace Director',
-      provider: 'Google Workspace'
-    };
+    throw new Error('Google OAuth is not properly configured. Please check your environment variables.');
   } else {
     // Microsoft / M365
     const clientId = process.env.MICROSOFT_CLIENT_ID;
@@ -151,8 +173,7 @@ export async function exchangeOAuthCode(
           if (userData.userPrincipalName || userData.mail) {
             const email = userData.mail || userData.userPrincipalName;
 
-            // Persist the access/refresh token so we can send real email via
-            // Graph later, without requiring the user to re-authenticate.
+            // Persist the access/refresh token for Graph API calls
             if (tokenData.access_token) {
               try {
                 await saveOAuthToken(
@@ -176,101 +197,89 @@ export async function exchangeOAuthCode(
           }
         }
       } catch (err) {
-        console.warn('Microsoft OAuth token exchange fallback triggered:', err);
+        console.warn('Microsoft OAuth token exchange failed:', err);
+        throw new Error('Failed to authenticate with Microsoft. Please try again.');
       }
     }
 
-    return {
-      email: 'm365.executive@spihead.com',
-      name: 'Microsoft 365 Enterprise Lead',
-      provider: 'Microsoft 365 Entra ID'
-    };
+    throw new Error('Microsoft OAuth is not properly configured. Please check your environment variables.');
   }
 }
 
 /**
- * Maps verified OAuth profile securely to Neon database and creates active session
+ * Maps verified OAuth profile to database and creates active session
  */
 export async function secureUserSessionMapping(profile: UserProfile, req: Request) {
   const cleanEmail = profile.email.toLowerCase().trim();
   let user = usersDb.get(cleanEmail);
 
+  // Check database for existing user
   if (!user && db) {
     try {
       const dbUsers = await db.select().from(users).where(eq(users.email, cleanEmail)).limit(1);
       if (dbUsers.length > 0) {
-        const dbU = dbUsers[0];
-        user = ensureServerUser({
-          id: dbU.id,
-          email: dbU.email,
-          name: dbU.name,
-          passwordHash: dbU.passwordHash || '',
-          role: dbU.role || 'Admin',
-          authRole: dbU.role || 'Admin',
-          mfaEnabled: true,
-          pinCode: '1234',
-          lastLoginAt: new Date().toISOString(),
-          jobTitle: dbU.jobTitle || `${profile.provider} Administrator`,
-          department: dbU.department || 'Executive Operations',
-          ipAddress: req.ip || '127.0.0.1',
-          companyName: dbU.company || `${profile.provider} Organization`,
-          selectedPlan: dbU.selectedPlan || 'enterprise',
-          provider: profile.provider,
-          emailVerified: true // OAuth users are verified
-        });
+        user = mapDbUserToServerUser(dbUsers[0], profile.provider, req);
+        usersDb.set(cleanEmail, user);
       }
     } catch (err) {
-      console.warn('Neon DB lookup error during OAuth user mapping:', err);
+      console.warn('Database lookup error during OAuth user mapping:', err);
+      throw new Error('Failed to lookup user in database.');
     }
   }
 
+  // Create new user if doesn't exist
   if (!user) {
-    const userId = 'usr_oauth_' + Date.now().toString(36) + '_' + crypto.randomBytes(3).toString('hex');
-    user = ensureServerUser({
-      id: userId,
-      email: cleanEmail,
-      name: profile.name || `${profile.provider} User`,
-      passwordHash: crypto.createHash('sha256').update('OAuthPass123!').digest('hex'),
-      role: 'Admin',
-      authRole: 'Admin',
-      mfaEnabled: true,
-      pinCode: '1234',
-      lastLoginAt: new Date().toISOString(),
-      jobTitle: `${profile.provider} Verified Administrator`,
-      department: 'Executive Operations',
-      ipAddress: req.ip || '127.0.0.1',
-      companyName: `${profile.provider} Enterprise Workspace`,
-      selectedPlan: 'enterprise',
-      provider: profile.provider,
-      emailVerified: true // OAuth users are verified
-    });
-
+    user = createOAuthUser(profile, req);
     usersDb.set(cleanEmail, user);
 
     if (db) {
       try {
         await db.insert(users).values({
-          id: userId,
+          id: user.id,
           name: user.name,
-          email: cleanEmail,
-          role: 'Admin',
+          email: user.email,
+          role: user.role,
           company: user.companyName,
           passwordHash: user.passwordHash,
           jobTitle: user.jobTitle,
           department: user.department,
           selectedPlan: user.selectedPlan,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          isActive: user.isActive,
+          emailVerified: user.emailVerified,
+          ipAddress: user.ipAddress
         });
       } catch (dbErr) {
-        console.warn('Neon DB insert error during OAuth user creation:', dbErr);
+        console.error('Failed to persist OAuth user to database:', dbErr);
+        // Remove from memory if database fails
+        usersDb.delete(cleanEmail);
+        throw new Error('Failed to create account. Please try again.');
       }
     }
   } else {
+    // Update existing user's last login
     user.lastLoginAt = new Date().toISOString();
     user.updatedAt = new Date().toISOString();
+    user.ipAddress = req.ip || user.ipAddress || 'unknown';
     usersDb.set(cleanEmail, user);
+
+    if (db) {
+      try {
+        await db.update(users)
+          .set({
+            lastLoginAt: user.lastLoginAt,
+            updatedAt: user.updatedAt,
+            ipAddress: user.ipAddress
+          })
+          .where(eq(users.email, cleanEmail));
+      } catch (dbErr) {
+        console.warn('Failed to update user last login:', dbErr);
+      }
+    }
   }
 
-  // Generate 24h stateless active session token
+  // Generate session token
   const token = createSessionToken(cleanEmail);
 
   const { passwordHash: _, ...publicProfile } = user;
@@ -298,7 +307,7 @@ function renderOAuthSuccessHtml(token: string, user: any, provider: string) {
     <div class="card">
       <div class="spinner"></div>
       <h2>OAuth Authenticated</h2>
-      <p>Securely mapping session to Neon DB via ${provider}...</p>
+      <p>Successfully authenticated via ${provider}...</p>
     </div>
     <script>
       const authPayload = ${JSON.stringify({ type: 'OAUTH_AUTH_SUCCESS', token, user, provider })};
@@ -320,15 +329,23 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
   if (res.headersSent) return;
   try {
     const providerParam = (req.params as any).provider || (req.query.provider as string) || 'google';
-    const code = (req.query.code as string) || (req.body && req.body.code) || 'demo_auth_code_' + Date.now();
+    const code = (req.query.code as string) || (req.body && req.body.code);
+    
+    if (!code) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Authorization code is required.' 
+      });
+    }
+
     const state = (req.query.state as string) || (req.body && req.body.state);
     const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
     const redirectUri = `${appUrl}/api/auth/oauth/callback/${providerParam.toLowerCase()}`;
 
-    // Verify code & exchange token
+    // Exchange code for user profile
     const profile = await exchangeOAuthCode(providerParam, code, redirectUri, state);
 
-    // Securely map user to session and save in Neon DB
+    // Map user to session and save in database
     const { token, user } = await secureUserSessionMapping(profile, req);
 
     if (res.headersSent) return;
@@ -343,20 +360,57 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
       provider: profile.provider,
       token,
       user,
-      message: `Successfully authenticated via ${profile.provider} and session mapped to Neon DB.`
+      message: `Successfully authenticated via ${profile.provider}.`
     });
   } catch (err: any) {
-    console.error('OAuth [provider] handler error:', err);
+    console.error('OAuth handler error:', err);
     if (res.headersSent) return;
+    
     if (req.headers.accept && req.headers.accept.includes('text/html')) {
       return res.status(500).send(`<html><body style="font-family:sans-serif;padding:2rem;"><h2>OAuth Authentication Error</h2><p>${err.message}</p></body></html>`);
     }
-    return res.status(500).json({ success: false, error: err.message || 'OAuth verification failed.' });
+    
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message || 'OAuth authentication failed.' 
+    });
   }
 }
 
-// Router endpoints for Express binding
-router.all(['/:provider', '/:provider/'], handleProviderOAuthFlow);
-router.all(['/callback/:provider', '/callback/:provider/'], handleProviderOAuthFlow);
+// ============= ROUTE REGISTRATION =============
+
+// OAuth Callback routes - Specific routes first
+router.get('/callback/google', handleProviderOAuthFlow);
+router.get('/callback/google/', handleProviderOAuthFlow);
+router.post('/callback/google', handleProviderOAuthFlow);
+router.post('/callback/google/', handleProviderOAuthFlow);
+
+router.get('/callback/microsoft', handleProviderOAuthFlow);
+router.get('/callback/microsoft/', handleProviderOAuthFlow);
+router.post('/callback/microsoft', handleProviderOAuthFlow);
+router.post('/callback/microsoft/', handleProviderOAuthFlow);
+
+// Generic callback - Must come after specific ones
+router.get('/callback/:provider', handleProviderOAuthFlow);
+router.get('/callback/:provider/', handleProviderOAuthFlow);
+router.post('/callback/:provider', handleProviderOAuthFlow);
+router.post('/callback/:provider/', handleProviderOAuthFlow);
+
+// Provider routes - Wildcard must come LAST
+router.get('/:provider', (req, res, next) => {
+  const p = req.params.provider;
+  // Skip if it's one of our other reserved routes
+  if (['callback', 'google', 'microsoft'].includes(p)) {
+    return next('route');
+  }
+  return handleProviderOAuthFlow(req, res);
+});
+router.post('/:provider', (req, res, next) => {
+  const p = req.params.provider;
+  if (['callback', 'google', 'microsoft'].includes(p)) {
+    return next('route');
+  }
+  return handleProviderOAuthFlow(req, res);
+});
 
 export default router;
