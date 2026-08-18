@@ -1,12 +1,18 @@
 import React, { useState } from 'react';
 import { Lead, LeadStatus, STANDARD_INDUSTRIES } from '../types/crm';
-import { sanitizeInput } from '../lib/authService';
-import { X, UserPlus, Building2, Mail, Phone, DollarSign, Layers, Sparkles } from 'lucide-react';
+import { sanitizeInput, isValidEmail } from '../lib/authService';
+import { X, UserPlus, Building2, Mail, Phone, DollarSign, Layers, Sparkles, AlertCircle } from 'lucide-react';
 
 interface AddLeadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (leadData: Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'score' | 'scoreBreakdown'>) => void;
+}
+
+interface FormErrors {
+  name?: string;
+  email?: string;
+  company?: string;
 }
 
 export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onSubmit }) => {
@@ -20,38 +26,85 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
   const [engagement, setEngagement] = useState<number>(3);
   const [notes, setNotes] = useState('');
   const [industry, setIndustry] = useState('Technology');
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    if (!name || name.trim().length < 2) {
+      newErrors.name = 'Name must be at least 2 characters';
+    }
+
+    if (!email || !isValidEmail(email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!company || company.trim().length < 2) {
+      newErrors.company = 'Company name is required';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !company) return;
+    
+    if (!validateForm()) {
+      return;
+    }
 
-    onSubmit({
-      name: sanitizeInput(name),
-      email: sanitizeInput(email),
-      phone: sanitizeInput(phone),
-      company: sanitizeInput(company),
-      budget: Number(budget),
-      status,
-      urgency,
-      engagement: Number(engagement),
-      replyCount: 1,
-      notes: sanitizeInput(notes),
-      industry,
-      m365Synced: true,
-      tags: ['New Lead', industry],
-    });
+    setIsSubmitting(true);
 
-    // Reset form
-    setName('');
-    setEmail('');
-    setPhone('');
-    setCompany('');
-    setBudget(25000);
-    setStatus('New');
-    setNotes('');
-    onClose();
+    try {
+      const sanitizedName = sanitizeInput(name.trim());
+      const sanitizedEmail = sanitizeInput(email.trim().toLowerCase());
+      const sanitizedCompany = sanitizeInput(company.trim());
+
+      await onSubmit({
+        name: sanitizedName,
+        email: sanitizedEmail,
+        phone: phone ? sanitizeInput(phone) : '',
+        company: sanitizedCompany,
+        budget: Number(budget),
+        status,
+        urgency,
+        engagement: Number(engagement),
+        replyCount: 1,
+        notes: notes ? sanitizeInput(notes) : '',
+        industry,
+        m365Synced: true,
+        tags: ['New Lead', industry],
+      });
+
+      // Reset form on success
+      setName('');
+      setEmail('');
+      setPhone('');
+      setCompany('');
+      setBudget(25000);
+      setStatus('New');
+      setUrgency(false);
+      setEngagement(3);
+      setNotes('');
+      setIndustry('Technology');
+      setErrors({});
+      onClose();
+    } catch (error) {
+      console.error('Failed to submit lead:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!isSubmitting) {
+      setErrors({});
+      onClose();
+    }
   };
 
   return (
@@ -70,15 +123,16 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
             </div>
           </div>
           <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-navy-800 transition-colors"
+            onClick={handleClose}
+            disabled={isSubmitting}
+            className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-navy-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Form */}
-        <form action="#" onSubmit={handleSubmit} className="p-6 space-y-4 text-sm text-slate-700">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-sm text-slate-700" noValidate>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -95,8 +149,16 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
                   placeholder="Full Name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-gold-400 focus:outline-none"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gold-400 focus:outline-none ${
+                    errors.name ? 'border-red-500 focus:ring-red-400' : 'border-slate-200'
+                  }`}
                 />
+                {errors.name && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                    <AlertCircle className="h-3 w-3" />
+                    <span>{errors.name}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -113,8 +175,16 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
                 placeholder="Company Name"
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-gold-400 focus:outline-none"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gold-400 focus:outline-none ${
+                  errors.company ? 'border-red-500 focus:ring-red-400' : 'border-slate-200'
+                }`}
               />
+              {errors.company && (
+                <div className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>{errors.company}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -132,8 +202,16 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
                 placeholder="email@company.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-gold-400 focus:outline-none"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-gold-400 focus:outline-none ${
+                  errors.email ? 'border-red-500 focus:ring-red-400' : 'border-slate-200'
+                }`}
               />
+              {errors.email && (
+                <div className="flex items-center gap-1 mt-1 text-xs text-red-500">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>{errors.email}</span>
+                </div>
+              )}
             </div>
 
             <div>
@@ -158,16 +236,19 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
               <label htmlFor="lead-budget" className="block text-xs font-semibold uppercase text-slate-500 mb-1">
                 Estimated Budget ($)
               </label>
-              <input
-                id="lead-budget"
-                name="budget"
-                type="number"
-                min={0}
-                step={1000}
-                value={budget}
-                onChange={(e) => setBudget(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono focus:ring-2 focus:ring-gold-400 focus:outline-none"
-              />
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  id="lead-budget"
+                  name="budget"
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={budget}
+                  onChange={(e) => setBudget(Number(e.target.value))}
+                  className="w-full pl-8 px-3 py-2 border border-slate-200 rounded-lg font-mono focus:ring-2 focus:ring-gold-400 focus:outline-none"
+                />
+              </div>
             </div>
 
             <div>
@@ -259,7 +340,7 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
               placeholder="Key pain points, software stack, Microsoft 365 requirements..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-gold-400 focus:outline-none"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-gold-400 focus:outline-none resize-none"
             />
           </div>
 
@@ -273,16 +354,28 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium"
+                onClick={handleClose}
+                disabled={isSubmitting}
+                className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 rounded-lg bg-gold-500 hover:bg-gold-400 text-navy-950 font-bold shadow-sm"
+                disabled={isSubmitting}
+                className="px-5 py-2 rounded-lg bg-gold-500 hover:bg-gold-400 text-navy-950 font-bold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
-                Add Lead
+                {isSubmitting ? (
+                  <>
+                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-navy-950 border-t-transparent"></span>
+                    Adding...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    Add Lead
+                  </>
+                )}
               </button>
             </div>
           </div>
