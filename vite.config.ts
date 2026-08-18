@@ -12,6 +12,7 @@ export default defineConfig(() => {
       },
     },
     build: {
+      outDir: 'dist',
       chunkSizeWarningLimit: 1200,
       rollupOptions: {
         output: {
