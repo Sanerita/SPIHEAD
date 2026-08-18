@@ -1,7 +1,8 @@
+// src/api/auth/[provider].ts
 import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { eq } from 'drizzle-orm';
-import { db } from '../../db/index.js';
+import { db, isDatabaseConnected } from '../../db/index.js';
 import { users } from '../../db/schema.js';
 import { usersDb, ServerUser, createSessionToken, createRefreshToken, findUserByEmail, updateUser } from '../sessionStore.js';
 
@@ -182,23 +183,23 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
       user = createOAuthUser(profile, req);
       usersDb.set(cleanEmail, user);
 
-      if (db) {
+      if (db && isDatabaseConnected) {
         try {
+          const now = new Date();
           await db.insert(users).values({
             id: user.id,
             name: user.name,
             email: user.email,
             role: user.role,
             passwordHash: user.passwordHash,
-            createdAt: user.createdAt,
-            updatedAt: user.updatedAt,
+            createdAt: now,
+            updatedAt: now,
             isActive: user.isActive,
             emailVerified: user.emailVerified,
             ipAddress: user.ipAddress
           });
         } catch (dbErr) {
           console.error('Failed to save OAuth user to database:', dbErr);
-          // Continue even if DB fails - user is in memory
         }
       }
     } else {
@@ -209,7 +210,8 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
       });
     }
 
-    const sessionToken = createSessionToken(cleanEmail, req.ip, req.headers['user-agent']);
+    // ✅ FIX: Use only the email parameter (remove ip and userAgent if not supported)
+    const sessionToken = createSessionToken(cleanEmail);
     const refreshToken = createRefreshToken(cleanEmail);
 
     const { passwordHash: _, ...publicUser } = user;
