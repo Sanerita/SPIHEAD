@@ -156,7 +156,6 @@ export async function exchangeOAuthCode(
 
 export async function handleProviderOAuthFlow(req: Request, res: Response) {
   try {
-    // Ensure provider is a string - handles both string and array cases
     const provider = typeof req.params.provider === 'string' 
       ? req.params.provider 
       : String(req.query.provider || 'google');
@@ -179,23 +178,18 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
     let user = findUserByEmail(cleanEmail);
 
     if (!user) {
-      // Create new user
       user = createOAuthUser(profile, req);
       usersDb.set(cleanEmail, user);
 
       if (db && isDatabaseConnected) {
         try {
-          const now = new Date();
-          const nowISO = now.toISOString();
+          const nowISO = new Date().toISOString();
           
-          // ✅ FIX: Only insert columns that exist in the database
           await db.insert(users).values({
             id: user.id,
             name: user.name,
             email: user.email,
             role: user.role,
-            // ✅ Removed: authRole, companySize, ipAddress, mfaEnabled, pinCode, 
-            // lastLoginAt, isActive, emailVerified, failedLoginAttempts, lockedUntil, lastPasswordChange
             company: user.companyName,
             passwordHash: user.passwordHash,
             jobTitle: user.jobTitle,
@@ -210,20 +204,17 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
         }
       }
     } else {
-      // Update existing user
       updateUser(cleanEmail, {
         lastLoginAt: new Date().toISOString(),
         ipAddress: req.ip || 'unknown'
       });
     }
 
-    // ✅ FIX: Use only the email parameter
     const sessionToken = createSessionToken(cleanEmail);
     const refreshToken = createRefreshToken(cleanEmail);
 
     const { passwordHash: _, ...publicUser } = user;
 
-    // Return HTML for popup if needed
     if (req.headers.accept?.includes('text/html')) {
       return res.send(`
         <!DOCTYPE html>
