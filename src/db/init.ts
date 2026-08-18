@@ -300,7 +300,7 @@ export async function initDbTables(): Promise<boolean> {
     
     for (const [tableName, createSQL] of Object.entries(TABLES)) {
       try {
-        await sql(createSQL);
+       await sql.query(createSQL);
         console.log(`   ✅ Table "${tableName}" created/verified`);
         createdCount++;
       } catch (error) {
