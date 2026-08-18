@@ -24,7 +24,7 @@ import {
   refreshSession
 } from './sessionStore.js';
 import { handleProviderOAuthFlow } from './auth/[provider].js';
-import { sendEmail } from '../lib/emailService.js';
+import { sendEmail, sendVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail } from '../lib/emailService.js';
 
 const router = Router();
 
@@ -184,16 +184,7 @@ export async function handleRegister(req: Request, res: Response) {
     
     // Send verification email
     try {
-      await sendEmail({
-        to: cleanEmail,
-        subject: 'Verify Your Email Address',
-        html: `
-          <h1>Welcome to SPIHEAD</h1>
-          <p>Please verify your email address by clicking the link below:</p>
-          <a href="${process.env.APP_URL}/verify?token=${verifyToken}">Verify Email</a>
-          <p>This link expires in 7 days.</p>
-        `
-      });
+      await sendVerificationEmail(cleanEmail, verifyToken);
     } catch (emailErr) {
       console.warn('Email send failed:', emailErr);
     }
@@ -329,6 +320,13 @@ export async function handleLogin(req: Request, res: Response) {
       error: 'Failed to authenticate'
     });
   }
+}
+
+/**
+ * POST /api/auth/signup - Alias for register (for compatibility)
+ */
+export async function handleSignup(req: Request, res: Response) {
+  return handleRegister(req, res);
 }
 
 /**
@@ -476,17 +474,7 @@ export async function handleForgotPassword(req: Request, res: Response) {
     
     // Send reset email
     try {
-      await sendEmail({
-        to: cleanEmail,
-        subject: 'Reset Your Password',
-        html: `
-          <h1>Password Reset Request</h1>
-          <p>Click the link below to reset your password:</p>
-          <a href="${process.env.APP_URL}/reset-password?token=${resetToken}">Reset Password</a>
-          <p>This link expires in 1 hour.</p>
-          <p>If you didn't request this, please ignore this email.</p>
-        `
-      });
+      await sendPasswordResetEmail(cleanEmail, resetToken);
     } catch (emailErr) {
       console.warn('Email send failed:', emailErr);
     }
@@ -613,6 +601,7 @@ export async function handleVerifyEmail(req: Request, res: Response) {
 // ============= ROUTE REGISTRATION =============
 
 router.post('/register', handleRegister);
+router.post('/signup', handleSignup); // Alias for register
 router.post('/login', handleLogin);
 router.post('/logout', handleLogout);
 router.get('/me', handleGetMe);
@@ -682,13 +671,27 @@ router.get('/oauth/callback/microsoft', handleProviderOAuthFlow);
 router.post('/oauth/callback/google', handleProviderOAuthFlow);
 router.post('/oauth/callback/microsoft', handleProviderOAuthFlow);
 
-// Wildcard routes
+// Wildcard routes - must come last
 router.get('/:provider', (req, res, next) => {
   const p = req.params.provider;
-  if (['register', 'login', 'logout', 'me', 'refresh', 'forgot-password', 'reset-password', 'verify-email', 'oauth'].includes(p)) {
+  if (['register', 'signup', 'login', 'logout', 'me', 'refresh', 'forgot-password', 'reset-password', 'verify-email', 'oauth'].includes(p)) {
     return next('route');
   }
   return handleProviderOAuthFlow(req, res);
 });
 
+// Export all handlers for createApp
+export { 
+  handleRegister, 
+  handleSignup, 
+  handleLogin, 
+  handleLogout, 
+  handleGetMe, 
+  handleRefresh,
+  handleForgotPassword,
+  handleResetPassword,
+  handleVerifyEmail
+};
+
+// Export the router as default
 export default router;
