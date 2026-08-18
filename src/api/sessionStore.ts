@@ -32,7 +32,7 @@ export const SEED_USERS: ServerUser[] = [
     jobTitle: "Chief Executive Officer / Founder",
     department: "Executive Operations",
     ipAddress: "197.189.204.12",
-    companyName: "SPIHEAD Enterprise",
+    companyName: "",
     selectedPlan: "small-business"
   },
   {
@@ -48,7 +48,7 @@ export const SEED_USERS: ServerUser[] = [
     jobTitle: "Chief Executive Officer / Founder",
     department: "Executive Operations",
     ipAddress: "197.189.204.12",
-    companyName: "SPIHEAD Enterprise",
+    companyName: "",
     selectedPlan: "small-business"
   },
   {
@@ -80,7 +80,7 @@ export const SEED_USERS: ServerUser[] = [
     jobTitle: "Senior Account Executive",
     department: "Global Revenue",
     ipAddress: "192.168.1.1",
-    companyName: "Acme Corp",
+    companyName: "Enterprise Client",
     selectedPlan: "small-business"
   }
 ];

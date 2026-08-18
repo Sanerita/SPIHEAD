@@ -70,7 +70,7 @@ export const M365HubView: React.FC<M365HubViewProps> = ({
   );
   const [teamsTime, setTeamsTime] = useState('14:00');
   const [teamsDuration, setTeamsDuration] = useState(30);
-  const [webhookMessage, setWebhookMessage] = useState('🎉 Deal Milestone: TechCorp requested M365 Security Review');
+  const [webhookMessage, setWebhookMessage] = useState('🎉 Deal Milestone: Requested CRM Security Review');
   const [isSendingWebhook, setIsSendingWebhook] = useState(false);
 
   // Tab 4: Contacts State
@@ -930,7 +930,7 @@ export const M365HubView: React.FC<M365HubViewProps> = ({
                 <div className="flex items-center gap-2.5">
                   <FileText className="h-4 w-4 text-blue-600" />
                   <div>
-                    <span className="font-bold text-navy-900 block">TechCorp_Cloud_Migration_Agreement.docx</span>
+                    <span className="font-bold text-navy-900 block">Enterprise_CRM_Security_Audit.docx</span>
                     <span className="text-slate-400 font-mono text-[10px]">245.8 KB • SharePoint Sync</span>
                   </div>
                 </div>

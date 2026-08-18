@@ -79,7 +79,7 @@ export async function handleLogin(req: Request, res: Response) {
         jobTitle: 'Workspace Director',
         department: 'Executive Operations',
         ipAddress: req.ip || '127.0.0.1',
-        companyName: 'SPIHEAD Enterprise',
+        companyName: '',
         companySize: '11-50',
         selectedPlan: 'small-business'
       };

@@ -274,7 +274,7 @@ class SubscriptionService {
   public getCSMDetails() {
     if (this.subscription.planId !== 'enterprise') return null;
     return {
-      name: 'Sarah Jenkins',
+      name: 'Enterprise Success Specialist',
       title: 'Senior Enterprise Success Lead',
       email: 's.jenkins@spihead.com',
       phone: '+1 (800) 555-SPIHEAD (ext. 901)',

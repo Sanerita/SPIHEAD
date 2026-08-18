@@ -5,97 +5,11 @@ import { leads } from '../db/schema.js';
 
 const router = Router();
 
-// Demo seed leads to populate database on initial run
-const DEMO_LEADS = [
-  {
-    id: 'lead-001',
-    userId: 'usr_001',
-    name: 'Sarah Jenkins',
-    email: 'sarah.jenkins@techcorp.com',
-    phone: '+1 (555) 234-5678',
-    company: 'TechCorp Solutions',
-    budget: 85000,
-    status: 'Qualified',
-    score: 92,
-    urgency: true,
-    engagement: 5,
-    replyCount: 4,
-    notes: 'VP of Enterprise IT. Highly interested in M365 Outlook integration and automated lead scoring.',
-    industry: 'Enterprise Software & Cloud',
-    tags: JSON.stringify(['M365', 'High Intent', 'Cloud']),
-  },
-  {
-    id: 'lead-002',
-    userId: 'usr_001',
-    name: 'Marcus Vance',
-    email: 'm.vance@vertexdigital.io',
-    phone: '+1 (555) 876-5432',
-    company: 'Vertex Digital',
-    budget: 120000,
-    status: 'Proposal',
-    score: 88,
-    urgency: true,
-    engagement: 4,
-    replyCount: 3,
-    notes: 'Chief Technology Officer evaluating CRM migration. Requires Teams meeting scheduling.',
-    industry: 'Digital Transformation',
-    tags: JSON.stringify(['Migration', 'Decision Maker']),
-  },
-  {
-    id: 'lead-003',
-    userId: 'usr_001',
-    name: 'Elena Rostova',
-    email: 'elena.rostova@quantumfin.com',
-    phone: '+1 (555) 345-6789',
-    company: 'Quantum Finance Corp',
-    budget: 250000,
-    status: 'Negotiation',
-    score: 96,
-    urgency: true,
-    engagement: 5,
-    replyCount: 7,
-    notes: 'Managing Director of FinTech Operations. Security audit completed.',
-    industry: 'Financial Services & Banking',
-    tags: JSON.stringify(['FinTech', 'Enterprise', 'High Budget']),
-  },
-  {
-    id: 'lead-004',
-    userId: 'usr_001',
-    name: 'David Chen',
-    email: 'dchen@bionova.health',
-    phone: '+1 (555) 987-6543',
-    company: 'BioNova Healthcare',
-    budget: 60000,
-    status: 'New',
-    score: 65,
-    urgency: false,
-    engagement: 2,
-    replyCount: 1,
-    notes: 'Inbound lead via Microsoft AppSource listing. Requested whitepaper on CRM security.',
-    industry: 'Healthcare & Biotechnology',
-    tags: JSON.stringify(['Inbound', 'AppSource']),
-  },
-  {
-    id: 'lead-005',
-    userId: 'usr_001',
-    name: 'Rachel Adams',
-    email: 'rachel@horizonhealth.org',
-    phone: '+1 (555) 456-7890',
-    company: 'Horizon Healthcare Network',
-    budget: 95000,
-    status: 'Contacted',
-    score: 74,
-    urgency: false,
-    engagement: 3,
-    replyCount: 2,
-    notes: 'Chief Information Officer looking to streamline patient referral sales pipeline.',
-    industry: 'Healthcare & Life Sciences',
-    tags: JSON.stringify(['Healthcare', 'CIO']),
-  }
-];
+// Seed leads array (empty for production)
+const DEMO_LEADS: any[] = [];
 
 // In-memory leads fallback when database is disconnected
-const memoryLeads: Map<string, any> = new Map(DEMO_LEADS.map(l => [l.id, l]));
+const memoryLeads: Map<string, any> = new Map();
 
 async function ensureSeedLeads() {
   if (!db) return;

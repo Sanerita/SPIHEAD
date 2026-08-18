@@ -136,35 +136,7 @@ export const m365Service = {
     budget: number;
     jobTitle: string;
   }[] {
-    return [
-      {
-        name: 'Dr. Aris Thorne',
-        email: 'a.thorne@biohealth-global.org',
-        company: 'BioHealth Global Systems',
-        phone: '+1 (555) 309-8812',
-        industry: 'Biotechnology & Health',
-        budget: 110000,
-        jobTitle: 'VP of Digital Transformation',
-      },
-      {
-        name: 'Katarina Lindqvist',
-        email: 'katarina@nordicrenewables.com',
-        company: 'Nordic Renewables Corp',
-        phone: '+46 8 123 4567',
-        industry: 'Clean Energy & Utilities',
-        budget: 95000,
-        jobTitle: 'Director of Global Infrastructure',
-      },
-      {
-        name: 'Timothy Vance',
-        email: 'tvance@omniglobaltech.io',
-        company: 'OmniGlobal Enterprise Solutions',
-        phone: '+1 (555) 789-0123',
-        industry: 'Enterprise SaaS',
-        budget: 175000,
-        jobTitle: 'Chief Information Officer',
-      },
-    ];
+    return [];
   },
 
   generateProposalDocument(lead: Lead): void {
@@ -344,24 +316,16 @@ Sanelisiwe Sileku, Senior Enterprise Executive, SPIHEAD Solutions
       case 'GET /v1.0/me/messages':
         data = {
           '@odata.context': 'https://graph.microsoft.com/v1.0/$metadata#users(\'me\')/messages',
-          value: [
+          value: leads.length > 0 ? [
             {
               id: 'msg_001',
-              subject: 'Re: SPIHEAD CRM Architecture Proposal',
+              subject: `Re: Enterprise Proposal for ${leads[0].company || leads[0].name}`,
               receivedDateTime: new Date(Date.now() - 3600 * 1000).toISOString(),
-              sender: { emailAddress: { name: 'Sarah Jenkins', address: 'sarah.jenkins@techcorp.com' } },
+              sender: { emailAddress: { name: leads[0].name, address: leads[0].email } },
               isRead: true,
-              bodyPreview: 'Thank you for sending the updated proposal details. Our team is ready for the Teams call.',
-            },
-            {
-              id: 'msg_002',
-              subject: 'Microsoft Teams Call Invitation Confirmed',
-              receivedDateTime: new Date(Date.now() - 86400 * 1000).toISOString(),
-              sender: { emailAddress: { name: 'Microsoft Teams', address: 'no-reply@teams.microsoft.com' } },
-              isRead: true,
-              bodyPreview: 'Your Microsoft Teams meeting with Marcus Vance has been scheduled.',
-            },
-          ],
+              bodyPreview: `Thank you for sending the updated details. Ready for our upcoming call.`,
+            }
+          ] : [],
         };
         break;
 
@@ -394,13 +358,7 @@ Sanelisiwe Sileku, Senior Enterprise Executive, SPIHEAD Solutions
           '@odata.context': 'https://graph.microsoft.com/v1.0/$metadata#drive/root/children',
           value: [
             {
-              name: 'TechCorp_Cloud_Migration_Agreement.docx',
-              size: 245800,
-              webUrl: 'https://spihead-my.sharepoint.com/documents/TechCorp_Agreement.docx',
-              lastModifiedDateTime: new Date(Date.now() - 86400 * 1000).toISOString(),
-            },
-            {
-              name: 'SPIHEAD_M365_Security_Audit.pdf',
+              name: 'Enterprise_CRM_Security_Audit.pdf',
               size: 1420900,
               webUrl: 'https://spihead-my.sharepoint.com/documents/Security_Audit.pdf',
               lastModifiedDateTime: new Date(Date.now() - 172800 * 1000).toISOString(),

@@ -82,7 +82,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     account.userPrincipalName || 'sanelisiwe.sileku@spihead.onmicrosoft.com'
   );
   const [jobTitle, setJobTitle] = useState(account.jobTitle || 'Senior Enterprise Executive');
-  const [companyName, setCompanyName] = useState(account.companyName || 'SPIHEAD Enterprise');
+  const [companyName, setCompanyName] = useState(account.companyName || '');
   const [department, setDepartment] = useState(account.department || 'Global Sales Operations');
   const [phoneNumber, setPhoneNumber] = useState(account.phoneNumber || '+1 (555) 019-2831');
   const [salesTarget, setSalesTarget] = useState<number>(account.salesTarget || 500000);

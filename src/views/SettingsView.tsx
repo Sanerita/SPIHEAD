@@ -76,7 +76,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [isAdaptingBiz, setIsAdaptingBiz] = useState(false);
 
   // General Settings State
-  const [companyName, setCompanyName] = useState(companyProf.companyName || 'SPIHEAD Enterprise');
+  const [companyName, setCompanyName] = useState(companyProf.companyName || '');
   const [currency, setCurrency] = useState(companyProf.currency || 'USD');
   const [timezone, setTimezone] = useState('UTC-05:00 (Eastern Time)');
   const [fiscalYearStart, setFiscalYearStart] = useState('January');
@@ -2225,12 +2225,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               <button
                 onClick={() => {
-                  onRestoreSampleData();
-                  if (showToast) showToast('Restored demo sample data successfully');
+                  onClearAllData();
+                  if (showToast) showToast('CRM storage cleared successfully', 'info');
                 }}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1.5 transition-colors border border-slate-200"
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1.5 transition-colors border border-slate-200 cursor-pointer"
               >
-                <RotateCcw className="h-4 w-4 text-slate-500" /> Restore Demo Sample Data
+                <RotateCcw className="h-4 w-4 text-slate-500" /> Reset CRM Storage
               </button>
             </div>
           </div>
