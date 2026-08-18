@@ -49,7 +49,7 @@ export async function exchangeOAuthCode(
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
     if (!clientId || !clientSecret) {
-      throw new Error('Google OAuth not configured');
+      throw new Error('Google OAuth not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.');
     }
 
     try {
@@ -66,17 +66,24 @@ export async function exchangeOAuthCode(
       });
 
       const tokenData = await tokenRes.json();
+      
       if (!tokenData.access_token) {
-        throw new Error('Failed to get access token');
+        console.error('Google token error:', tokenData);
+        throw new Error('Failed to get access token from Google');
       }
 
       const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
         headers: { Authorization: `Bearer ${tokenData.access_token}` }
       });
 
+      if (!userRes.ok) {
+        throw new Error(`Failed to fetch user info from Google: ${userRes.status}`);
+      }
+
       const userData = await userRes.json();
+      
       if (!userData.email) {
-        throw new Error('Failed to get user email');
+        throw new Error('No email returned from Google');
       }
 
       return {
@@ -87,7 +94,7 @@ export async function exchangeOAuthCode(
       };
     } catch (error) {
       console.error('Google OAuth error:', error);
-      throw new Error('Failed to authenticate with Google');
+      throw new Error(`Failed to authenticate with Google: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   } else {
     // Microsoft
@@ -96,7 +103,7 @@ export async function exchangeOAuthCode(
     const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
 
     if (!clientId || !clientSecret) {
-      throw new Error('Microsoft OAuth not configured');
+      throw new Error('Microsoft OAuth not configured. Please set MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET environment variables.');
     }
 
     try {
@@ -113,19 +120,25 @@ export async function exchangeOAuthCode(
       });
 
       const tokenData = await tokenRes.json();
+      
       if (!tokenData.access_token) {
-        throw new Error('Failed to get access token');
+        console.error('Microsoft token error:', tokenData);
+        throw new Error('Failed to get access token from Microsoft');
       }
 
       const userRes = await fetch('https://graph.microsoft.com/v1.0/me', {
         headers: { Authorization: `Bearer ${tokenData.access_token}` }
       });
 
+      if (!userRes.ok) {
+        throw new Error(`Failed to fetch user info from Microsoft: ${userRes.status}`);
+      }
+
       const userData = await userRes.json();
       const email = userData.mail || userData.userPrincipalName;
       
       if (!email) {
-        throw new Error('Failed to get user email');
+        throw new Error('No email returned from Microsoft');
       }
 
       return {
@@ -135,14 +148,14 @@ export async function exchangeOAuthCode(
       };
     } catch (error) {
       console.error('Microsoft OAuth error:', error);
-      throw new Error('Failed to authenticate with Microsoft');
+      throw new Error(`Failed to authenticate with Microsoft: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }
 
 export async function handleProviderOAuthFlow(req: Request, res: Response) {
   try {
-    // FIX: Ensure provider is a string - handles both string and array cases
+    // Ensure provider is a string - handles both string and array cases
     const provider = typeof req.params.provider === 'string' 
       ? req.params.provider 
       : String(req.query.provider || 'google');
@@ -184,7 +197,8 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
             ipAddress: user.ipAddress
           });
         } catch (dbErr) {
-          console.error('Failed to save OAuth user:', dbErr);
+          console.error('Failed to save OAuth user to database:', dbErr);
+          // Continue even if DB fails - user is in memory
         }
       }
     } else {
@@ -206,15 +220,31 @@ export async function handleProviderOAuthFlow(req: Request, res: Response) {
         <!DOCTYPE html>
         <html>
           <head><title>Authentication Complete</title></head>
-          <body>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f5f5f5;">
+            <div style="text-align: center; padding: 40px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+              <h2 style="color: #1a1a1a; margin-bottom: 8px;">✅ Authentication Complete</h2>
+              <p style="color: #666; margin-bottom: 20px;">You can close this window and return to the app.</p>
+              <div style="width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #f59e0b; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+              <style>
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+              </style>
+            </div>
             <script>
-              window.opener.postMessage({
-                type: 'OAUTH_SUCCESS',
-                token: '${sessionToken}',
-                refreshToken: '${refreshToken}',
-                user: ${JSON.stringify(publicUser)}
-              }, '*');
-              window.close();
+              try {
+                window.opener.postMessage({
+                  type: 'OAUTH_SUCCESS',
+                  token: '${sessionToken}',
+                  refreshToken: '${refreshToken}',
+                  user: ${JSON.stringify(publicUser)}
+                }, '*');
+                setTimeout(() => window.close(), 1000);
+              } catch (e) {
+                console.log('OAuth popup: No opener window found');
+                window.location.href = '/';
+              }
             </script>
           </body>
         </html>
