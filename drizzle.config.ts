@@ -9,6 +9,13 @@ export default defineConfig({
   dbCredentials: {
     url: process.env.DATABASE_URL!,
   },
-  verbose: true,
-  strict: true,
+  tablesFilter: ['!pg_catalog.*', '!information_schema.*'],
+  introspect: {
+    casing: 'camel',
+  },
+  migrations: {
+    prefix: 'timestamp',
+    table: 'migrations',
+    schema: 'public',
+  },
 });
