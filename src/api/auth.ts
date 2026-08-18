@@ -136,8 +136,7 @@ export async function handleRegister(req: Request, res: Response) {
 
     const passwordHash = hashPassword(password);
     const userId = `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
-    const now = new Date();
-    const nowISO = now.toISOString();
+    const nowISO = new Date().toISOString();
 
     const user = {
       id: userId,
