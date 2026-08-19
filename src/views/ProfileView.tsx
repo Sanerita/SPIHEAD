@@ -26,7 +26,8 @@ import {
   Users,
   Briefcase,
   Calendar,
-  Trophy
+  Trophy,
+  Zap // ✅ ADDED Zap HERE
 } from 'lucide-react';
 import { M365Account, Lead, Meeting } from '../types/crm';
 import { m365Service } from '../lib/m365Service';
@@ -664,7 +665,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               onClick={() => setIsUpgradeModalOpen(true)}
               className="mt-4 px-5 py-2 rounded-xl bg-gold-400 hover:bg-gold-300 text-slate-950 font-bold text-sm transition-colors flex items-center gap-2"
             >
-              <Zap className="h-4 w-4 fill-current" />
+              <Zap className="h-4 w-4" />
               Upgrade Plan
             </button>
           </div>
