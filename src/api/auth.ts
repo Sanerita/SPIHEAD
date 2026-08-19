@@ -789,12 +789,158 @@ export async function handleVerifyEmail(req: Request, res: Response) {
   }
 }
 
-// ============= ROUTE REGISTRATION =============
+// ============================================
+// NEW: PROFILE UPDATE ENDPOINTS
+// ============================================
+
+/**
+ * PUT /api/auth/update-profile - Update user profile
+ */
+export async function handleUpdateProfile(req: Request, res: Response) {
+  try {
+    const token = extractToken(req);
+    if (!token) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Unauthorized' 
+      });
+    }
+
+    const session = getVerifiedSession(token);
+    if (!session) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Invalid session' 
+      });
+    }
+
+    const { name, jobTitle, companyName, department, phoneNumber } = req.body;
+    const user = findUserByEmail(session.userEmail);
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'User not found' 
+      });
+    }
+
+    // Update user fields
+    const updatedUser = updateUser(session.userEmail, {
+      name: name || user.name,
+      jobTitle: jobTitle || user.jobTitle,
+      companyName: companyName || user.companyName,
+      department: department || user.department,
+      phoneNumber: phoneNumber || user.phoneNumber,
+    });
+
+    if (!updatedUser) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to update user' 
+      });
+    }
+
+    const { passwordHash: _, ...publicUser } = updatedUser;
+
+    console.log('✅ Profile updated for:', session.userEmail);
+    return res.json({ 
+      success: true, 
+      message: 'Profile updated successfully',
+      user: publicUser
+    });
+  } catch (error: any) {
+    console.error('Update profile error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to update profile' 
+    });
+  }
+}
+
+/**
+ * POST /api/auth/change-password - Change user password
+ */
+export async function handleChangePassword(req: Request, res: Response) {
+  try {
+    const token = extractToken(req);
+    if (!token) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Unauthorized' 
+      });
+    }
+
+    const session = getVerifiedSession(token);
+    if (!session) {
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Invalid session' 
+      });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    const user = findUserByEmail(session.userEmail);
+    
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'User not found' 
+      });
+    }
+
+    // Verify current password
+    if (hashPassword(currentPassword) !== user.passwordHash) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Current password is incorrect' 
+      });
+    }
+
+    // Validate new password
+    if (!newPassword || newPassword.length < 8) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'New password must be at least 8 characters long' 
+      });
+    }
+
+    // Update password
+    const updatedUser = updateUser(session.userEmail, {
+      passwordHash: hashPassword(newPassword),
+    });
+
+    if (!updatedUser) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to update password' 
+      });
+    }
+
+    // Revoke all other sessions (optional security measure)
+    // revokeAllUserSessions(session.userEmail);
+
+    console.log('✅ Password changed for:', session.userEmail);
+    return res.json({ 
+      success: true, 
+      message: 'Password updated successfully' 
+    });
+  } catch (error: any) {
+    console.error('Change password error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to change password' 
+    });
+  }
+}
+
+// ============================================
+// ROUTE REGISTRATION
+// ============================================
 
 router.post('/register', handleRegister);
 router.post('/signup', handleSignup);
 router.post('/login', handleLogin);
-router.post('/test-create-user', handleTestCreateUser); // ✅ Added test endpoint
+router.post('/test-create-user', handleTestCreateUser);
 router.post('/logout', handleLogout);
 router.get('/me', handleGetMe);
 router.post('/me', handleGetMe);
@@ -802,6 +948,10 @@ router.post('/refresh', handleRefresh);
 router.post('/forgot-password', handleForgotPassword);
 router.post('/reset-password', handleResetPassword);
 router.get('/verify-email', handleVerifyEmail);
+
+// NEW: Profile update routes
+router.put('/update-profile', handleUpdateProfile);
+router.post('/change-password', handleChangePassword);
 
 // OAuth URL endpoint
 router.get('/oauth/url', (req: Request, res: Response) => {
@@ -857,7 +1007,7 @@ router.post('/oauth/callback/microsoft', handleProviderOAuthFlow);
 // Wildcard routes - must come last
 router.get('/:provider', (req, res, next) => {
   const p = req.params.provider;
-  if (['register', 'signup', 'login', 'logout', 'me', 'refresh', 'forgot-password', 'reset-password', 'verify-email', 'oauth', 'test-create-user'].includes(p)) {
+  if (['register', 'signup', 'login', 'logout', 'me', 'refresh', 'forgot-password', 'reset-password', 'verify-email', 'oauth', 'test-create-user', 'update-profile', 'change-password'].includes(p)) {
     return next('route');
   }
   return handleProviderOAuthFlow(req, res);
