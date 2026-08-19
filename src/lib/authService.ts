@@ -16,6 +16,7 @@ export interface AppUser {
   companySize?: string;
   selectedPlan?: string;
   isAuthenticated?: boolean;
+  phoneNumber?: string;
 }
 
 export interface SecurityAuditLog {
@@ -612,6 +613,33 @@ class AuthService {
       return false;
     } catch (error) {
       console.warn('Token refresh failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Refresh user data from the backend
+   * Updates currentUser with latest profile information
+   */
+  public async refreshUser(): Promise<boolean> {
+    try {
+      const res = await fetch('/api/auth/me', {
+        headers: {
+          Authorization: `Bearer ${this.sessionToken}`
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.user) {
+          this.currentUser = data.user;
+          this.saveState();
+          this.notify();
+          return true;
+        }
+      }
+      return false;
+    } catch (err) {
+      console.warn('Failed to refresh user:', err);
       return false;
     }
   }
