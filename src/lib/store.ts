@@ -1,3 +1,4 @@
+// src/lib/store.ts
 import { Lead, Meeting, Activity, EmailMessage, M365Account, LeadStatus } from '../types/crm';
 import { calculateLeadEnergyScore } from './aiScoringEngine';
 import { m365Service } from './m365Service';
@@ -14,39 +15,45 @@ export class CRMStore {
 
   constructor() {
     this.loadFromStorage();
-    // Load from backend asynchronously
     this.loadFromBackend();
   }
 
   /**
    * Load data from Neon PostgreSQL via API
-   * This replaces the hardcoded demo data with real database content
    */
   public async loadFromBackend() {
     if (this.isLoading) return;
     this.isLoading = true;
 
     try {
-      // Load leads from backend
       const leadsRes = await apiClient.get('/api/leads', { silent: true });
       if (leadsRes?.success && Array.isArray(leadsRes.leads) && leadsRes.leads.length > 0) {
-        this.leads = leadsRes.leads.map((l: any) => ({
-          ...l,
-          createdAt: l.createdAt || new Date().toISOString(),
-          updatedAt: l.updatedAt || new Date().toISOString(),
-          score: l.score || 50,
-          m365Synced: l.m365Synced !== undefined ? l.m365Synced : true,
-        }));
+        this.leads = leadsRes.leads.map((l: any) => {
+          // Ensure tags is an array
+          let tags = l.tags;
+          if (typeof tags === 'string') {
+            try {
+              tags = JSON.parse(tags);
+            } catch {
+              tags = [];
+            }
+          }
+          if (!Array.isArray(tags)) {
+            tags = [];
+          }
+
+          return {
+            ...l,
+            tags: tags,
+            createdAt: l.createdAt || new Date().toISOString(),
+            updatedAt: l.updatedAt || new Date().toISOString(),
+            score: l.score || 50,
+            m365Synced: l.m365Synced !== undefined ? l.m365Synced : true,
+          };
+        });
         this.saveLeads();
         console.log(`✅ Loaded ${this.leads.length} leads from Neon DB`);
-      } else {
-        // If no leads in DB, try to create sample data for new users
-        console.log('📊 No leads found in database. User may need to add leads.');
       }
-
-      // TODO: Load meetings, activities, emails from backend endpoints
-      // For now, they remain in localStorage
-
       this.notify();
     } catch (err) {
       console.warn('⚠️ Could not load data from backend, using local storage:', err);
@@ -140,6 +147,13 @@ export class CRMStore {
    */
   addLead(leadData: Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'score' | 'scoreBreakdown'>): Lead {
     const { score, breakdown } = calculateLeadEnergyScore(leadData);
+    
+    // Ensure tags is an array
+    let tags = leadData.tags;
+    if (!Array.isArray(tags)) {
+      tags = [];
+    }
+    
     const newLead: Lead = {
       ...leadData,
       id: `lead_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -149,12 +163,12 @@ export class CRMStore {
       updatedAt: new Date().toISOString(),
       lastContact: leadData.status === 'Contacted' ? new Date().toISOString() : null,
       m365Synced: true,
+      tags: tags,
     };
 
     this.leads.unshift(newLead);
     this.saveLeads();
 
-    // ✅ PERSIST TO NEON DB
     apiClient.post('/api/leads', newLead, {
       customErrorToast: 'Failed to save lead to server'
     }).then(res => {
@@ -174,9 +188,6 @@ export class CRMStore {
     return newLead;
   }
 
-  /**
-   * Update a lead - persists to both localStorage and Neon DB
-   */
   updateLead(id: string, updates: Partial<Lead>): Lead | undefined {
     const index = this.leads.findIndex((l) => l.id === id);
     if (index === -1) return undefined;
@@ -193,7 +204,6 @@ export class CRMStore {
 
     this.saveLeads();
 
-    // ✅ UPDATE IN NEON DB
     apiClient.put(`/api/leads/${id}`, updates, {
       customErrorToast: `Failed to update lead on server`
     }).catch(err => console.warn('⚠️ Lead DB update error:', err));
@@ -221,15 +231,11 @@ export class CRMStore {
     return updated;
   }
 
-  /**
-   * Delete a lead - removes from both localStorage and Neon DB
-   */
   deleteLead(id: string): void {
     const lead = this.getLeadById(id);
     this.leads = this.leads.filter((l) => l.id !== id);
     this.saveLeads();
 
-    // ✅ DELETE FROM NEON DB
     apiClient.delete(`/api/leads/${id}`, {
       customErrorToast: `Failed to delete lead from server`
     }).catch(err => console.warn('⚠️ Lead DB delete error:', err));
@@ -400,18 +406,10 @@ export class CRMStore {
     this.notify();
   }
 
-  /**
-   * Restore sample data - only for demo/testing purposes
-   * In production, this should be disabled or require admin confirmation
-   */
   restoreSampleData(): void {
-    // This is intentionally kept minimal - it should not override real data
-    // In production, you may want to disable this entirely
     console.warn('⚠️ restoreSampleData() called - this should only be used for demos');
     
-    // Only add sample data if there are no existing leads
     if (this.leads.length === 0) {
-      // Add a single sample lead as an example
       this.addLead({
         name: 'Sample Lead',
         email: 'sample@example.com',
@@ -434,9 +432,6 @@ export class CRMStore {
 
   adaptToCompanyProfile(industry: string, companyName?: string): void {
     const profile = companyService.adaptToIndustry(industry, companyName);
-    
-    // Don't override existing leads - just adapt the terminology
-    // The actual data stays the same
 
     this.addActivity({
       type: 'status_changed',
