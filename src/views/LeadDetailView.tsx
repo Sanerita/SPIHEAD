@@ -1,3 +1,4 @@
+// src/views/LeadDetailView.tsx
 import React from 'react';
 import { Lead, Meeting, EmailMessage, LeadStatus } from '../types/crm';
 import { LeadEnergyGauge } from '../components/LeadEnergyGauge';
@@ -302,7 +303,8 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
               </div>
             </div>
 
-            {lead.tags && lead.tags.length > 0 && (
+            {/* Tags Section - FIXED: Safely render tags */}
+            {lead.tags && Array.isArray(lead.tags) && lead.tags.length > 0 && (
               <div className="pt-3 border-t border-slate-100">
                 <span className="text-[11px] font-semibold text-slate-400 block mb-1.5 uppercase">Tags</span>
                 <div className="flex flex-wrap gap-1.5">
@@ -332,3 +334,5 @@ export const LeadDetailView: React.FC<LeadDetailViewProps> = ({
     </div>
   );
 };
+
+export default LeadDetailView;
