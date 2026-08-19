@@ -1,3 +1,4 @@
+// src/views/ProfileView.tsx
 import React, { useState, useEffect } from 'react';
 import { 
   User, 
@@ -33,7 +34,7 @@ import {
 } from 'lucide-react';
 import { M365Account, Lead, Meeting } from '../types/crm';
 import { m365Service } from '../lib/m365Service';
-import { authService } from '../lib/authService';
+import { authService, AppUser } from '../lib/authService';
 import { subscriptionService } from '../lib/subscriptionService';
 import { currencyService } from '../lib/currencyService';
 import { UpgradePlanModal } from '../components/UpgradePlanModal';
@@ -61,6 +62,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'security' | 'm365' | 'billing'>('overview');
 
+  // Get real user data from auth service
+  const currentUser = authService.getCurrentUser();
+  
   // Subscription & Invoices State
   const [sub, setSub] = useState<UserSubscription>(subscriptionService.getSubscription());
   const [invoices, setInvoices] = useState<Invoice[]>(subscriptionService.getInvoices());
@@ -75,22 +79,21 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     return () => unsubSub();
   }, []);
 
-  // Form state
-  const [displayName, setDisplayName] = useState(account.displayName || 'Sanelisiwe Sileku');
-  const [email, setEmail] = useState(account.email || 'sanelisiwe.sileku@gmail.com');
+  // Form state - use real data from authService instead of hardcoded demo
+  const [displayName, setDisplayName] = useState(currentUser?.name || account.displayName || '');
+  const [email, setEmail] = useState(currentUser?.email || account.email || '');
   const [userPrincipalName, setUserPrincipalName] = useState(
-    account.userPrincipalName || 'sanelisiwe.sileku@spihead.onmicrosoft.com'
+    account.userPrincipalName || currentUser?.email || ''
   );
-  const [jobTitle, setJobTitle] = useState(account.jobTitle || 'Senior Enterprise Executive');
-  const [companyName, setCompanyName] = useState(account.companyName || '');
-  const [department, setDepartment] = useState(account.department || 'Global Sales Operations');
-  const [phoneNumber, setPhoneNumber] = useState(account.phoneNumber || '+1 (555) 019-2831');
+  const [jobTitle, setJobTitle] = useState(account.jobTitle || currentUser?.jobTitle || '');
+  const [companyName, setCompanyName] = useState(account.companyName || currentUser?.companyName || '');
+  const [department, setDepartment] = useState(account.department || currentUser?.department || '');
+  const [phoneNumber, setPhoneNumber] = useState(account.phoneNumber || '');
   const [salesTarget, setSalesTarget] = useState<number>(account.salesTarget || 500000);
   const [currency, setCurrency] = useState(account.currency || 'USD');
-  const [territory, setTerritory] = useState(account.territory || 'Global Enterprise');
+  const [territory, setTerritory] = useState(account.territory || 'Global');
   const [bio, setBio] = useState(
-    account.bio ||
-      'Enterprise Account Executive managing key client relationships, cloud migration strategy, and Microsoft 365 ecosystem integrations.'
+    account.bio || ''
   );
 
   // Security Form State
@@ -100,14 +103,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState('');
 
-  // Get user initials
+  // Get user initials from real data
   const initials = displayName
     .split(' ')
     .filter(Boolean)
     .map((n) => n[0])
     .join('')
     .toUpperCase()
-    .slice(0, 2) || 'SS';
+    .slice(0, 2) || 'U';
 
   // Live Performance Calculations based on actual leads data
   const totalLeadsCount = leads.length;
@@ -117,13 +120,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     .filter((l) => l.status !== 'Closed')
     .reduce((sum, l) => sum + (l.budget || 0), 0);
   const targetNumber = Number(salesTarget) || 500000;
-  const quotaPercentage = Math.min(100, Math.round((closedRevenue / targetNumber) * 100));
+  const quotaPercentage = targetNumber > 0 ? Math.min(100, Math.round((closedRevenue / targetNumber) * 100)) : 0;
   const winRate = totalLeadsCount > 0 ? Math.round((closedLeads.length / totalLeadsCount) * 100) : 0;
-  const avgDealSize =
-    closedLeads.length > 0 ? Math.round(closedRevenue / closedLeads.length) : 0;
+  const avgDealSize = closedLeads.length > 0 ? Math.round(closedRevenue / closedLeads.length) : 0;
 
-  // Handle Save Profile Form
-  const handleSaveProfile = (e: React.FormEvent) => {
+  // Handle Save Profile Form - saves to backend
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     const updatedAccount: M365Account = {
       ...account,
@@ -140,14 +142,46 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       bio,
     };
 
+    // Save to local service
     m365Service.saveAccount(updatedAccount);
     if (onAccountUpdate) onAccountUpdate(updatedAccount);
+    
+    // Update user in auth service
+    if (currentUser) {
+      // Update user details via API
+      try {
+        const res = await fetch('/api/auth/update-profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authService.getSessionToken()}`
+          },
+          body: JSON.stringify({
+            name: displayName,
+            jobTitle,
+            companyName,
+            department,
+            phoneNumber,
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            // Refresh user data
+            await authService.refreshUser();
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to update profile on server:', err);
+      }
+    }
+    
     setIsEditing(false);
     if (showToast) showToast('Profile details updated successfully!');
   };
 
-  // Handle Password Update
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  // Handle Password Update - sends to backend
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
     setPasswordSuccess(false);
@@ -165,13 +199,33 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       return;
     }
 
-    // Simulate password change success
-    authService.logAuditEvent('User Password Credentials Reset', 'Authentication', 'High', 'User security password modified successfully');
-    setPasswordSuccess(true);
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    if (showToast) showToast('Security password updated successfully!');
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authService.getSessionToken()}`
+        },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword
+        })
+      });
+
+      if (res.ok) {
+        authService.logAuditEvent('User Password Credentials Reset', 'Authentication', 'High', 'User security password modified successfully');
+        setPasswordSuccess(true);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        if (showToast) showToast('Security password updated successfully!');
+      } else {
+        const data = await res.json();
+        setPasswordError(data.error || 'Failed to update password.');
+      }
+    } catch (err) {
+      setPasswordError('Failed to update password. Please try again.');
+    }
   };
 
   // Export User Profile & Sales Data to Excel (.csv)
@@ -392,33 +446,33 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         <div className="px-6 pb-6 pt-0 relative flex flex-col sm:flex-row items-center sm:items-end gap-5 -mt-10">
           {/* Avatar Initials */}
           <div className="h-24 w-24 rounded-2xl bg-gold-500 text-navy-950 flex items-center justify-center font-extrabold text-3xl shadow-xl border-4 border-navy-900 shrink-0">
-            {initials}
+            {initials || 'U'}
           </div>
 
           <div className="space-y-1 text-center sm:text-left flex-1">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
-              <h1 className="text-2xl font-black text-gold-400 tracking-tight">{displayName}</h1>
+              <h1 className="text-2xl font-black text-gold-400 tracking-tight">{displayName || 'User'}</h1>
               <span className="px-3 py-0.5 rounded-full text-xs font-extrabold bg-navy-800 text-gold-300 border border-gold-400/30 shadow-xs">
-                {jobTitle}
+                {jobTitle || 'No Title'}
               </span>
               {authService.getCurrentUser()?.authRole && (
                 <span className="px-3 py-0.5 rounded-full text-[11px] font-black bg-gold-500 text-navy-950 uppercase tracking-wider flex items-center gap-1 shadow-sm">
-                  <ShieldCheck className="h-3.5 w-3.5" /> authRole: {authService.getCurrentUser()?.authRole}
+                  <ShieldCheck className="h-3.5 w-3.5" /> {authService.getCurrentUser()?.authRole}
                 </span>
               )}
             </div>
 
-            <p className="text-xs text-navy-200 font-mono tracking-wide">{userPrincipalName}</p>
+            <p className="text-xs text-navy-200 font-mono tracking-wide">{userPrincipalName || email}</p>
 
             <div className="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-navy-300">
               <span className="flex items-center gap-1.5">
-                <Building className="h-4 w-4 text-gold-400" /> {companyName} • {department}
+                <Building className="h-4 w-4 text-gold-400" /> {companyName || 'No Company'} {department ? `• ${department}` : ''}
               </span>
               <span className="flex items-center gap-1.5">
                 <Globe className="h-4 w-4 text-blue-400" /> {territory}
               </span>
               <span className="flex items-center gap-1.5">
-                <ShieldCheck className="h-4 w-4 text-emerald-400" /> {account.subscriptionType}
+                <ShieldCheck className="h-4 w-4 text-emerald-400" /> {account.subscriptionType || 'Free'}
               </span>
             </div>
           </div>
@@ -474,7 +528,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
       {/* Edit Mode Inline Drawer/Form */}
       {isEditing && (
-        <form action="#" onSubmit={handleSaveProfile} className="bg-white p-6 rounded-2xl border border-gold-300/80 shadow-md space-y-6">
+        <form onSubmit={handleSaveProfile} className="bg-white p-6 rounded-2xl border border-gold-300/80 shadow-md space-y-6">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3 text-navy-900">
             <h3 className="font-black text-lg flex items-center gap-2">
               <Edit3 className="h-5 w-5 text-gold-500" /> Edit Executive Profile & Sales Quota
@@ -641,7 +695,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </form>
       )}
 
-      {/* Main Tab Content */}
+      {/* Main Tab Content - Overview */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
           
@@ -720,18 +774,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </h3>
 
               <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                {bio}
+                {bio || 'No bio provided yet.'}
               </p>
 
               <div className="pt-2 grid grid-cols-2 gap-3 text-xs">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">Phone</span>
-                  <span className="font-bold text-navy-900 font-mono">{phoneNumber}</span>
+                  <span className="font-bold text-navy-900 font-mono">{phoneNumber || 'Not set'}</span>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">Email</span>
-                  <span className="font-bold text-navy-900 font-mono truncate block">{email}</span>
+                  <span className="font-bold text-navy-900 font-mono truncate block">{email || 'Not set'}</span>
                 </div>
               </div>
             </div>
@@ -753,17 +807,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between py-1 border-b border-slate-50">
                   <span className="text-slate-500">Tenant Name</span>
-                  <span className="font-bold text-navy-900">{account.tenantName}</span>
+                  <span className="font-bold text-navy-900">{account.tenantName || 'Not configured'}</span>
                 </div>
 
                 <div className="flex justify-between py-1 border-b border-slate-50">
                   <span className="text-slate-500">Tenant ID</span>
-                  <span className="font-mono text-slate-700 text-[11px]">{account.tenantId}</span>
+                  <span className="font-mono text-slate-700 text-[11px]">{account.tenantId || 'N/A'}</span>
                 </div>
 
                 <div className="flex justify-between py-1 border-b border-slate-50">
                   <span className="text-slate-500">Subscription Tier</span>
-                  <span className="font-bold text-navy-900">{account.subscriptionType}</span>
+                  <span className="font-bold text-navy-900">{account.subscriptionType || 'Free'}</span>
                 </div>
 
                 <div className="flex justify-between py-1">
@@ -800,7 +854,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </div>
           </div>
 
-          <form action="#" onSubmit={handlePasswordSubmit} className="max-w-lg space-y-4">
+          <form onSubmit={handlePasswordSubmit} className="max-w-lg space-y-4">
             {passwordError && (
               <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-medium flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 shrink-0" />
@@ -1184,3 +1238,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     </div>
   );
 };
+
+// ✅ CRITICAL: Default export for the component
+export default ProfileView;
