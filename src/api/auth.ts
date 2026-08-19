@@ -54,7 +54,7 @@ function mapDbUserToServerUser(dbU: any, req?: Request): ServerUser {
     isActive: true,
     emailVerified: false,
     failedLoginAttempts: 0,
-    phoneNumber: dbU.phoneNumber || '', // ✅ ADD THIS
+    phoneNumber: dbU.phoneNumber || '', // ✅ ADDED
   };
 }
 
@@ -145,7 +145,6 @@ export async function handleRegister(req: Request, res: Response) {
     const userId = `usr_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
     const nowISO = new Date().toISOString();
 
-    // Create user object
     const user = {
       id: userId,
       email: cleanEmail,
@@ -158,15 +157,12 @@ export async function handleRegister(req: Request, res: Response) {
       selectedPlan: 'free',
       createdAt: nowISO,
       updatedAt: nowISO,
-      phoneNumber: '', // ✅ ADD THIS
+      phoneNumber: '', // ✅ ADDED
     };
 
-    // Store in memory with ISO strings
     const userForMemory = {
       ...user,
       lastLoginAt: nowISO,
-      createdAt: nowISO,
-      updatedAt: nowISO,
       authRole: 'User',
       mfaEnabled: false,
       pinCode: '',
@@ -175,7 +171,7 @@ export async function handleRegister(req: Request, res: Response) {
       isActive: true,
       emailVerified: false,
       failedLoginAttempts: 0,
-      phoneNumber: '', // ✅ ADD THIS
+      phoneNumber: '', // ✅ ADDED
     };
     usersDb.set(cleanEmail, userForMemory);
     console.log('✅ [REGISTER] User stored in memory');
@@ -183,7 +179,7 @@ export async function handleRegister(req: Request, res: Response) {
     if (db && isDatabaseConnected) {
       try {
         console.log('💾 [REGISTER] Saving to database...');
-        const insertValues = {
+        await db.insert(users).values({
           id: user.id,
           name: user.name,
           email: user.email,
@@ -193,11 +189,10 @@ export async function handleRegister(req: Request, res: Response) {
           jobTitle: user.jobTitle,
           department: user.department,
           selectedPlan: user.selectedPlan,
+          phoneNumber: '', // ✅ ADDED
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
-          phoneNumber: '', // ✅ ADD THIS
-        };
-        await db.insert(users).values(insertValues as any);
+        } as any);
         console.log('✅ [REGISTER] User saved to database');
       } catch (dbErr) {
         console.error('❌ [REGISTER] Database save error:', dbErr);
@@ -280,9 +275,9 @@ export async function handleLogin(req: Request, res: Response) {
           jobTitle: users.jobTitle,
           department: users.department,
           selectedPlan: users.selectedPlan,
+          phoneNumber: users.phoneNumber, // ✅ ADDED
           createdAt: users.createdAt,
           updatedAt: users.updatedAt,
-          phoneNumber: users.phoneNumber, // ✅ ADD THIS
         }).from(users).where(eq(users.email, cleanEmail)).limit(1);
         
         console.log('🔐 [LOGIN] Database result:', dbUsers.length > 0 ? 'User found' : 'User not found');
@@ -312,7 +307,7 @@ export async function handleLogin(req: Request, res: Response) {
             isActive: true,
             emailVerified: false,
             failedLoginAttempts: 0,
-            phoneNumber: dbU.phoneNumber || '', // ✅ ADD THIS
+            phoneNumber: dbU.phoneNumber || '', // ✅ ADDED
           };
           usersDb.set(cleanEmail, user);
           console.log('✅ [LOGIN] User found in database');
@@ -373,10 +368,6 @@ export async function handleLogin(req: Request, res: Response) {
 
 // ============= TEST USER ENDPOINT =============
 
-/**
- * POST /api/auth/test-create-user - Create a test user for debugging
- * This endpoint is for development/testing purposes only
- */
 export async function handleTestCreateUser(req: Request, res: Response) {
   try {
     console.log('🧪 [TEST] Creating test user...');
@@ -399,7 +390,6 @@ export async function handleTestCreateUser(req: Request, res: Response) {
     const cleanEmail = email.trim().toLowerCase();
     console.log('🧪 [TEST] Email:', cleanEmail);
     
-    // Check if user already exists
     const existingUser = findUserByEmail(cleanEmail);
     if (existingUser) {
       console.log('🧪 [TEST] User already exists');
@@ -413,7 +403,6 @@ export async function handleTestCreateUser(req: Request, res: Response) {
       });
     }
     
-    // Create test user
     const passwordHash = hashPassword(password);
     console.log('🧪 [TEST] Password hash:', passwordHash.substring(0, 20) + '...');
     
@@ -432,7 +421,7 @@ export async function handleTestCreateUser(req: Request, res: Response) {
       selectedPlan: 'free',
       createdAt: nowISO,
       updatedAt: nowISO,
-      phoneNumber: '', // ✅ ADD THIS
+      phoneNumber: '', // ✅ ADDED
     };
     
     const userForMemory = {
@@ -446,12 +435,11 @@ export async function handleTestCreateUser(req: Request, res: Response) {
       isActive: true,
       emailVerified: false,
       failedLoginAttempts: 0,
-      phoneNumber: '', // ✅ ADD THIS
+      phoneNumber: '', // ✅ ADDED
     };
     usersDb.set(cleanEmail, userForMemory);
     console.log('✅ [TEST] Test user created in memory');
     
-    // Try to save to database
     if (db && isDatabaseConnected) {
       try {
         await db.insert(users).values({
@@ -464,9 +452,9 @@ export async function handleTestCreateUser(req: Request, res: Response) {
           jobTitle: user.jobTitle,
           department: user.department,
           selectedPlan: user.selectedPlan,
+          phoneNumber: '', // ✅ ADDED
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
-          phoneNumber: '', // ✅ ADD THIS
         } as any);
         console.log('✅ [TEST] Test user saved to database');
       } catch (dbErr) {
@@ -493,16 +481,10 @@ export async function handleTestCreateUser(req: Request, res: Response) {
   }
 }
 
-/**
- * POST /api/auth/signup - Alias for register
- */
 export async function handleSignup(req: Request, res: Response) {
   return handleRegister(req, res);
 }
 
-/**
- * POST /api/auth/logout - End session
- */
 export async function handleLogout(req: Request, res: Response) {
   try {
     const token = extractToken(req);
@@ -522,9 +504,6 @@ export async function handleLogout(req: Request, res: Response) {
   }
 }
 
-/**
- * GET /api/auth/me - Get current user
- */
 export async function handleGetMe(req: Request, res: Response) {
   try {
     const token = extractToken(req);
@@ -558,9 +537,9 @@ export async function handleGetMe(req: Request, res: Response) {
           jobTitle: users.jobTitle,
           department: users.department,
           selectedPlan: users.selectedPlan,
+          phoneNumber: users.phoneNumber, // ✅ ADDED
           createdAt: users.createdAt,
           updatedAt: users.updatedAt,
-          phoneNumber: users.phoneNumber, // ✅ ADD THIS
         }).from(users).where(eq(users.email, session.userEmail)).limit(1);
         
         if (dbUsers.length > 0) {
@@ -586,7 +565,7 @@ export async function handleGetMe(req: Request, res: Response) {
             isActive: true,
             emailVerified: false,
             failedLoginAttempts: 0,
-            phoneNumber: dbU.phoneNumber || '', // ✅ ADD THIS
+            phoneNumber: dbU.phoneNumber || '', // ✅ ADDED
           };
           usersDb.set(session.userEmail, user);
         }
@@ -619,9 +598,6 @@ export async function handleGetMe(req: Request, res: Response) {
   }
 }
 
-/**
- * POST /api/auth/refresh - Refresh session token
- */
 export async function handleRefresh(req: Request, res: Response) {
   try {
     const { refreshToken } = req.body;
@@ -654,9 +630,6 @@ export async function handleRefresh(req: Request, res: Response) {
   }
 }
 
-/**
- * POST /api/auth/forgot-password - Request password reset
- */
 export async function handleForgotPassword(req: Request, res: Response) {
   try {
     const { email } = req.body;
@@ -698,9 +671,6 @@ export async function handleForgotPassword(req: Request, res: Response) {
   }
 }
 
-/**
- * POST /api/auth/reset-password - Reset password
- */
 export async function handleResetPassword(req: Request, res: Response) {
   try {
     const { token, newPassword } = req.body;
@@ -749,9 +719,6 @@ export async function handleResetPassword(req: Request, res: Response) {
   }
 }
 
-/**
- * GET /api/auth/verify-email - Verify email address
- */
 export async function handleVerifyEmail(req: Request, res: Response) {
   try {
     const { token } = req.query;
@@ -804,9 +771,6 @@ export async function handleVerifyEmail(req: Request, res: Response) {
 // PROFILE UPDATE ENDPOINTS
 // ============================================
 
-/**
- * PUT /api/auth/update-profile - Update user profile
- */
 export async function handleUpdateProfile(req: Request, res: Response) {
   try {
     const token = extractToken(req);
@@ -835,7 +799,6 @@ export async function handleUpdateProfile(req: Request, res: Response) {
       });
     }
 
-    // Update user fields - phoneNumber is now part of ServerUser
     const updatedUser = updateUser(session.userEmail, {
       name: name || user.name,
       jobTitle: jobTitle || user.jobTitle,
@@ -868,9 +831,6 @@ export async function handleUpdateProfile(req: Request, res: Response) {
   }
 }
 
-/**
- * POST /api/auth/change-password - Change user password
- */
 export async function handleChangePassword(req: Request, res: Response) {
   try {
     const token = extractToken(req);
@@ -899,7 +859,6 @@ export async function handleChangePassword(req: Request, res: Response) {
       });
     }
 
-    // Verify current password
     if (hashPassword(currentPassword) !== user.passwordHash) {
       return res.status(400).json({ 
         success: false, 
@@ -907,7 +866,6 @@ export async function handleChangePassword(req: Request, res: Response) {
       });
     }
 
-    // Validate new password
     if (!newPassword || newPassword.length < 8) {
       return res.status(400).json({ 
         success: false, 
@@ -915,7 +873,6 @@ export async function handleChangePassword(req: Request, res: Response) {
       });
     }
 
-    // Update password
     const updatedUser = updateUser(session.userEmail, {
       passwordHash: hashPassword(newPassword),
     });
@@ -956,12 +913,9 @@ router.post('/refresh', handleRefresh);
 router.post('/forgot-password', handleForgotPassword);
 router.post('/reset-password', handleResetPassword);
 router.get('/verify-email', handleVerifyEmail);
-
-// Profile update routes
 router.put('/update-profile', handleUpdateProfile);
 router.post('/change-password', handleChangePassword);
 
-// OAuth URL endpoint
 router.get('/oauth/url', (req: Request, res: Response) => {
   try {
     const provider = (req.query.provider as string || 'microsoft').toLowerCase();
@@ -1006,13 +960,11 @@ router.get('/oauth/url', (req: Request, res: Response) => {
   }
 });
 
-// OAuth Callbacks
 router.get('/oauth/callback/google', handleProviderOAuthFlow);
 router.get('/oauth/callback/microsoft', handleProviderOAuthFlow);
 router.post('/oauth/callback/google', handleProviderOAuthFlow);
 router.post('/oauth/callback/microsoft', handleProviderOAuthFlow);
 
-// Wildcard routes - must come last
 router.get('/:provider', (req, res, next) => {
   const p = req.params.provider;
   if (['register', 'signup', 'login', 'logout', 'me', 'refresh', 'forgot-password', 'reset-password', 'verify-email', 'oauth', 'test-create-user', 'update-profile', 'change-password'].includes(p)) {
