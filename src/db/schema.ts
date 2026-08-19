@@ -14,6 +14,7 @@ export const users = pgTable('users', {
   jobTitle: text('job_title'),
   department: text('department'),
   selectedPlan: text('selected_plan').default('free'),
+  phoneNumber: text('phone_number'), 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
