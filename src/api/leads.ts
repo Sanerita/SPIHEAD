@@ -9,8 +9,22 @@ const memoryLeads = new Map<string, any>();
 
 // Helper to convert database lead to memory format
 function mapDbLeadToMemory(dbLead: any): any {
+  // Parse tags if it's a string
+  let tags = dbLead.tags;
+  if (typeof tags === 'string') {
+    try {
+      tags = JSON.parse(tags);
+    } catch {
+      tags = [];
+    }
+  }
+  if (!Array.isArray(tags)) {
+    tags = [];
+  }
+
   return {
     ...dbLead,
+    tags: tags,
     createdAt: dbLead.createdAt instanceof Date ? dbLead.createdAt.toISOString() : dbLead.createdAt,
     updatedAt: dbLead.updatedAt instanceof Date ? dbLead.updatedAt.toISOString() : dbLead.updatedAt,
   };
@@ -122,6 +136,9 @@ router.post('/', async (req: Request, res: Response) => {
     const leadId = `lead_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date();
 
+    // Ensure tags is an array before stringifying
+    let tagsArray = Array.isArray(tags) ? tags : [];
+
     const newLead = {
       id: leadId,
       userId: userId || null,
@@ -137,7 +154,7 @@ router.post('/', async (req: Request, res: Response) => {
       urgency: urgency || false,
       engagement: engagement || 1,
       replyCount: 0,
-      tags: tags ? JSON.stringify(tags) : '[]',
+      tags: JSON.stringify(tagsArray),
       createdAt: now,
       updatedAt: now,
     };
@@ -175,7 +192,7 @@ router.post('/', async (req: Request, res: Response) => {
       ...newLead,
       createdAt: newLead.createdAt.toISOString(),
       updatedAt: newLead.updatedAt.toISOString(),
-      tags: Array.isArray(tags) ? tags : [],
+      tags: tagsArray,
     };
     memoryLeads.set(leadId, memoryLead);
 
@@ -229,7 +246,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    const allowedUpdates = ['name', 'email', 'phone', 'company', 'status', 'notes', 'industry', 'budget', 'score', 'urgency', 'engagement'];
+    const allowedUpdates = ['name', 'email', 'phone', 'company', 'status', 'notes', 'industry', 'budget', 'score', 'urgency', 'engagement', 'tags'];
     const updatePayload: any = { updatedAt: new Date() };
     const updatePayloadMemory: any = { updatedAt: new Date().toISOString() };
 
@@ -247,13 +264,19 @@ router.put('/:id', async (req: Request, res: Response) => {
             error: 'Name must be at least 2 characters'
           });
         }
-        const value = field === 'budget' ? Number(updates[field]) : 
-                     field === 'score' ? Number(updates[field]) :
-                     field === 'engagement' ? Number(updates[field]) :
-                     field === 'urgency' ? Boolean(updates[field]) :
-                     updates[field];
-        updatePayload[field] = value;
-        updatePayloadMemory[field] = value;
+        if (field === 'tags') {
+          const tagsArray = Array.isArray(updates[field]) ? updates[field] : [];
+          updatePayload[field] = JSON.stringify(tagsArray);
+          updatePayloadMemory[field] = tagsArray;
+        } else {
+          const value = field === 'budget' ? Number(updates[field]) : 
+                       field === 'score' ? Number(updates[field]) :
+                       field === 'engagement' ? Number(updates[field]) :
+                       field === 'urgency' ? Boolean(updates[field]) :
+                       updates[field];
+          updatePayload[field] = value;
+          updatePayloadMemory[field] = value;
+        }
       }
     }
 
