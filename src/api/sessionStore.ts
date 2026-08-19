@@ -25,6 +25,7 @@ export interface ServerUser {
   lastPasswordChange?: string;
   failedLoginAttempts?: number;
   lockedUntil?: string;
+  phoneNumber?: string;
 }
 
 export interface SessionData {
