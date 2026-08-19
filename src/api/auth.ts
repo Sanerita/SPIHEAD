@@ -53,7 +53,8 @@ function mapDbUserToServerUser(dbU: any, req?: Request): ServerUser {
     updatedAt: dbU.updatedAt ? new Date(dbU.updatedAt).toISOString() : now,
     isActive: true,
     emailVerified: false,
-    failedLoginAttempts: 0
+    failedLoginAttempts: 0,
+    phoneNumber: dbU.phoneNumber || '', // ✅ ADD THIS
   };
 }
 
@@ -157,6 +158,7 @@ export async function handleRegister(req: Request, res: Response) {
       selectedPlan: 'free',
       createdAt: nowISO,
       updatedAt: nowISO,
+      phoneNumber: '', // ✅ ADD THIS
     };
 
     // Store in memory with ISO strings
@@ -172,7 +174,8 @@ export async function handleRegister(req: Request, res: Response) {
       companySize: '',
       isActive: true,
       emailVerified: false,
-      failedLoginAttempts: 0
+      failedLoginAttempts: 0,
+      phoneNumber: '', // ✅ ADD THIS
     };
     usersDb.set(cleanEmail, userForMemory);
     console.log('✅ [REGISTER] User stored in memory');
@@ -192,6 +195,7 @@ export async function handleRegister(req: Request, res: Response) {
           selectedPlan: user.selectedPlan,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
+          phoneNumber: '', // ✅ ADD THIS
         };
         await db.insert(users).values(insertValues as any);
         console.log('✅ [REGISTER] User saved to database');
@@ -278,6 +282,7 @@ export async function handleLogin(req: Request, res: Response) {
           selectedPlan: users.selectedPlan,
           createdAt: users.createdAt,
           updatedAt: users.updatedAt,
+          phoneNumber: users.phoneNumber, // ✅ ADD THIS
         }).from(users).where(eq(users.email, cleanEmail)).limit(1);
         
         console.log('🔐 [LOGIN] Database result:', dbUsers.length > 0 ? 'User found' : 'User not found');
@@ -306,7 +311,8 @@ export async function handleLogin(req: Request, res: Response) {
             updatedAt: dbU.updatedAt ? new Date(dbU.updatedAt).toISOString() : new Date().toISOString(),
             isActive: true,
             emailVerified: false,
-            failedLoginAttempts: 0
+            failedLoginAttempts: 0,
+            phoneNumber: dbU.phoneNumber || '', // ✅ ADD THIS
           };
           usersDb.set(cleanEmail, user);
           console.log('✅ [LOGIN] User found in database');
@@ -426,6 +432,7 @@ export async function handleTestCreateUser(req: Request, res: Response) {
       selectedPlan: 'free',
       createdAt: nowISO,
       updatedAt: nowISO,
+      phoneNumber: '', // ✅ ADD THIS
     };
     
     const userForMemory = {
@@ -438,7 +445,8 @@ export async function handleTestCreateUser(req: Request, res: Response) {
       companySize: '',
       isActive: true,
       emailVerified: false,
-      failedLoginAttempts: 0
+      failedLoginAttempts: 0,
+      phoneNumber: '', // ✅ ADD THIS
     };
     usersDb.set(cleanEmail, userForMemory);
     console.log('✅ [TEST] Test user created in memory');
@@ -458,6 +466,7 @@ export async function handleTestCreateUser(req: Request, res: Response) {
           selectedPlan: user.selectedPlan,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
+          phoneNumber: '', // ✅ ADD THIS
         } as any);
         console.log('✅ [TEST] Test user saved to database');
       } catch (dbErr) {
@@ -551,6 +560,7 @@ export async function handleGetMe(req: Request, res: Response) {
           selectedPlan: users.selectedPlan,
           createdAt: users.createdAt,
           updatedAt: users.updatedAt,
+          phoneNumber: users.phoneNumber, // ✅ ADD THIS
         }).from(users).where(eq(users.email, session.userEmail)).limit(1);
         
         if (dbUsers.length > 0) {
@@ -575,7 +585,8 @@ export async function handleGetMe(req: Request, res: Response) {
             updatedAt: dbU.updatedAt ? new Date(dbU.updatedAt).toISOString() : new Date().toISOString(),
             isActive: true,
             emailVerified: false,
-            failedLoginAttempts: 0
+            failedLoginAttempts: 0,
+            phoneNumber: dbU.phoneNumber || '', // ✅ ADD THIS
           };
           usersDb.set(session.userEmail, user);
         }
@@ -790,7 +801,7 @@ export async function handleVerifyEmail(req: Request, res: Response) {
 }
 
 // ============================================
-// NEW: PROFILE UPDATE ENDPOINTS
+// PROFILE UPDATE ENDPOINTS
 // ============================================
 
 /**
@@ -824,7 +835,7 @@ export async function handleUpdateProfile(req: Request, res: Response) {
       });
     }
 
-    // Update user fields
+    // Update user fields - phoneNumber is now part of ServerUser
     const updatedUser = updateUser(session.userEmail, {
       name: name || user.name,
       jobTitle: jobTitle || user.jobTitle,
@@ -916,9 +927,6 @@ export async function handleChangePassword(req: Request, res: Response) {
       });
     }
 
-    // Revoke all other sessions (optional security measure)
-    // revokeAllUserSessions(session.userEmail);
-
     console.log('✅ Password changed for:', session.userEmail);
     return res.json({ 
       success: true, 
@@ -949,7 +957,7 @@ router.post('/forgot-password', handleForgotPassword);
 router.post('/reset-password', handleResetPassword);
 router.get('/verify-email', handleVerifyEmail);
 
-// NEW: Profile update routes
+// Profile update routes
 router.put('/update-profile', handleUpdateProfile);
 router.post('/change-password', handleChangePassword);
 
