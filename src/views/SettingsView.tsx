@@ -1,3 +1,4 @@
+// src/views/SettingsView.tsx
 import React, { useState, useEffect } from 'react';
 import {
   Settings,
@@ -66,13 +67,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   // Business Adaptation Profile State
   const companyProf = companyService.getProfile();
-  const [bizCompanyName, setBizCompanyName] = useState(companyProf.companyName);
-  const [bizIndustry, setBizIndustry] = useState(companyProf.industry);
-  const [bizOfferings, setBizOfferings] = useState(companyProf.productsAndServices);
-  const [bizTargetAudience, setBizTargetAudience] = useState(companyProf.targetAudience);
-  const [bizLeadSingular, setBizLeadSingular] = useState(companyProf.leadTermSingular);
-  const [bizLeadPlural, setBizLeadPlural] = useState(companyProf.leadTermPlural);
-  const [bizCurrency, setBizCurrency] = useState(companyProf.currency);
+  const [bizCompanyName, setBizCompanyName] = useState(companyProf.companyName || '');
+  const [bizIndustry, setBizIndustry] = useState(companyProf.industry || 'Enterprise Software & SaaS');
+  const [bizOfferings, setBizOfferings] = useState(companyProf.productsAndServices || '');
+  const [bizTargetAudience, setBizTargetAudience] = useState(companyProf.targetAudience || '');
+  const [bizLeadSingular, setBizLeadSingular] = useState(companyProf.leadTermSingular || 'Lead');
+  const [bizLeadPlural, setBizLeadPlural] = useState(companyProf.leadTermPlural || 'Leads');
+  const [bizCurrency, setBizCurrency] = useState(companyProf.currency || 'USD');
   const [isAdaptingBiz, setIsAdaptingBiz] = useState(false);
 
   // General Settings State
@@ -115,9 +116,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   // M365 Settings State
   const [m365Account, setM365Account] = useState<M365Account>(() => m365Service.getAccount());
-  const [tenantId, setTenantId] = useState(() => m365Service.getAccount().tenantId || '72f988bf-86f1-41af-91ab-2d7cd011db47');
-  const [clientId, setClientId] = useState('a9f4c1e2-38d5-4a6b-9c10-123456789abc');
-  const [clientSecret, setClientSecret] = useState('m365_sec_99381273_x8a');
+  const [tenantId, setTenantId] = useState(() => m365Service.getAccount().tenantId || '');
+  const [clientId, setClientId] = useState(() => {
+    // Try to load from localStorage
+    const saved = localStorage.getItem('spihead_m365_client_id');
+    return saved || '';
+  });
+  const [clientSecret, setClientSecret] = useState(() => {
+    const saved = localStorage.getItem('spihead_m365_client_secret');
+    return saved || '';
+  });
   const [redirectUri, setRedirectUri] = useState(() => 
     typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : 'https://crm.spihead.com/auth/callback'
   );
@@ -153,8 +161,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [secSettings, setSecSettings] = useState(() => authService.getSecuritySettings());
   const [auditLogs, setAuditLogs] = useState(() => authService.getAuditLogs());
   const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser());
-  const [sessionTimeout, setSessionTimeout] = useState('30 Minutes');
-  const [gdprRetentionDays, setGdprRetentionDays] = useState(365);
+  const [isSavedSuccess, setIsSavedSuccess] = useState(false);
 
   useEffect(() => {
     const unsub = authService.subscribe(() => {
@@ -167,7 +174,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   // Modal State
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
-  const [isSavedSuccess, setIsSavedSuccess] = useState(false);
 
   // Storage Persistence Key
   const SETTINGS_STORAGE_KEY = 'spihead_crm_app_settings';
@@ -205,7 +211,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         if (saved.autoStaleLeadAlert !== undefined) setAutoStaleLeadAlert(saved.autoStaleLeadAlert);
         if (saved.alertEmailRecipient !== undefined) setAlertEmailRecipient(saved.alertEmailRecipient);
         if (saved.staleLeadDays !== undefined) setStaleLeadDays(saved.staleLeadDays);
-        if (saved.sessionTimeout !== undefined) setSessionTimeout(saved.sessionTimeout);
+        if (saved.sessionTimeout !== undefined) setSessionTimeout(secSettings.sessionTimeoutMinutes + ' Minutes');
         if (saved.gdprRetentionDays !== undefined) setGdprRetentionDays(saved.gdprRetentionDays);
       }
     } catch (e) {
@@ -260,8 +266,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       autoStaleLeadAlert,
       alertEmailRecipient,
       staleLeadDays,
-      sessionTimeout,
-      gdprRetentionDays,
       ...overrides,
     };
     try {
@@ -297,11 +301,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   // Connect M365 Account with Azure AD OAuth
   const handleConnectM365 = () => {
+    // Save credentials
+    localStorage.setItem('spihead_m365_client_id', clientId);
+    localStorage.setItem('spihead_m365_client_secret', clientSecret);
+    
     const updatedAccount = m365Service.connectAccount();
-    updatedAccount.tenantId = tenantId;
+    if (tenantId) {
+      updatedAccount.tenantId = tenantId;
+    }
     m365Service.saveAccount(updatedAccount);
     setM365Account(updatedAccount);
-    if (showToast) showToast(`Connected to Microsoft 365 Tenant (${tenantId.slice(0, 8)}...)`, 'success');
+    if (showToast) showToast(`Connected to Microsoft 365 Tenant`, 'success');
   };
 
   // Disconnect M365 Account
@@ -325,16 +335,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         return;
       }
 
-      // Ensure account is connected in storage
       const acc = m365Service.getAccount();
       acc.isConnected = true;
-      acc.tenantId = tenantId;
+      if (tenantId) {
+        acc.tenantId = tenantId;
+      }
       acc.lastSyncedAt = new Date().toISOString();
       m365Service.saveAccount(acc);
       setM365Account(acc);
 
       setTestResult(
-        `✓ Azure AD Entra ID Authentication Success (Tenant: ${tenantId})\n` +
+        `✓ Azure AD Entra ID Authentication Success (Tenant: ${tenantId || 'N/A'})\n` +
         `✓ Graph API v1.0 Endpoints Verified: /me (User Profile), /me/messages (Outlook Mail), /me/contacts (Directory), /me/events (Teams Calendar)\n` +
         `✓ Granted Scopes: ${acc.scopes.join(', ')}\n` +
         `✓ Response Latency: 84ms | Status: 200 OK`
@@ -402,9 +413,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       try {
         const json = JSON.parse(e.target?.result as string);
         if (json.data && Array.isArray(json.data.leads)) {
-          // Restore store
           crmStore.clearAllData();
-          json.data.leads.forEach((l: any) => crmStore.addLead(l));
+          json.data.leads.forEach((l: any) => {
+            crmStore.addLead({
+              name: l.name || 'Imported Lead',
+              email: l.email || 'imported@example.com',
+              phone: l.phone || '',
+              company: l.company || 'Imported Company',
+              budget: l.budget || 0,
+              status: l.status || 'New',
+              urgency: l.urgency || false,
+              engagement: l.engagement || 3,
+              replyCount: l.replyCount || 0,
+              notes: l.notes || '',
+              industry: l.industry || 'Technology',
+              m365Synced: l.m365Synced || false,
+              tags: l.tags || [],
+            });
+          });
           if (showToast) showToast('Successfully restored CRM database from backup file!');
         } else {
           alert('Invalid backup file format.');
@@ -418,6 +444,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const userRole = currentUser?.authRole || currentUser?.role || 'Admin';
   const isOwnerOrAdmin = userRole === 'Owner' || userRole === 'Admin';
+
+  // GDPR Retention Days state
+  const [gdprRetentionDays, setGdprRetentionDays] = useState(365);
 
   if (!isOwnerOrAdmin) {
     return (
@@ -654,7 +683,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             <form
-              action="#"
               onSubmit={(e) => {
                 e.preventDefault();
                 setIsAdaptingBiz(true);
@@ -1053,11 +1081,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
                 <label htmlFor="settings-primary-navy-text" className="text-[10px] uppercase tracking-wider block font-bold text-slate-500 cursor-pointer">Primary Dark Base</label>
                 <div className="flex items-center gap-2">
-                  <label htmlFor="settings-primary-navy-picker" className="sr-only">Primary Dark Base Color Picker</label>
                   <input
                     id="settings-primary-navy-picker"
                     name="primaryNavyPicker"
-                    aria-label="Primary Dark Base Color Picker"
                     type="color"
                     value={primaryNavy}
                     onChange={(e) =>
@@ -1073,7 +1099,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <input
                     id="settings-primary-navy-text"
                     name="primaryNavy"
-                    aria-label="Primary Dark Base Color Hex Code"
                     type="text"
                     value={primaryNavy}
                     onChange={(e) =>
@@ -1093,11 +1118,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
                 <label htmlFor="settings-accent-navy-text" className="text-[10px] uppercase tracking-wider block font-bold text-slate-500 cursor-pointer">Secondary Dark Surface</label>
                 <div className="flex items-center gap-2">
-                  <label htmlFor="settings-accent-navy-picker" className="sr-only">Secondary Dark Surface Color Picker</label>
                   <input
                     id="settings-accent-navy-picker"
                     name="accentNavyPicker"
-                    aria-label="Secondary Dark Surface Color Picker"
                     type="color"
                     value={accentNavy}
                     onChange={(e) =>
@@ -1113,7 +1136,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <input
                     id="settings-accent-navy-text"
                     name="accentNavy"
-                    aria-label="Secondary Dark Surface Color Hex Code"
                     type="text"
                     value={accentNavy}
                     onChange={(e) =>
@@ -1133,11 +1155,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
                 <label htmlFor="settings-luxury-gold-text" className="text-[10px] uppercase tracking-wider block font-bold text-slate-500 cursor-pointer">Brand Primary Accent</label>
                 <div className="flex items-center gap-2">
-                  <label htmlFor="settings-luxury-gold-picker" className="sr-only">Brand Primary Accent Color Picker</label>
                   <input
                     id="settings-luxury-gold-picker"
                     name="luxuryGoldPicker"
-                    aria-label="Brand Primary Accent Color Picker"
                     type="color"
                     value={luxuryGold}
                     onChange={(e) =>
@@ -1153,7 +1173,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <input
                     id="settings-luxury-gold-text"
                     name="luxuryGold"
-                    aria-label="Brand Primary Accent Color Hex Code"
                     type="text"
                     value={luxuryGold}
                     onChange={(e) =>
@@ -1173,11 +1192,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
                 <label htmlFor="settings-highlight-gold-text" className="text-[10px] uppercase tracking-wider block font-bold text-slate-500 cursor-pointer">Secondary Highlight</label>
                 <div className="flex items-center gap-2">
-                  <label htmlFor="settings-highlight-gold-picker" className="sr-only">Secondary Highlight Color Picker</label>
                   <input
                     id="settings-highlight-gold-picker"
                     name="highlightGoldPicker"
-                    aria-label="Secondary Highlight Color Picker"
                     type="color"
                     value={highlightGold}
                     onChange={(e) =>
@@ -1193,7 +1210,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <input
                     id="settings-highlight-gold-text"
                     name="highlightGold"
-                    aria-label="Secondary Highlight Color Hex Code"
                     type="text"
                     value={highlightGold}
                     onChange={(e) =>
@@ -1224,7 +1240,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4" style={{ color: luxuryGold }} />
                     <span className="font-extrabold text-xs text-white tracking-wide">
-                      {companyName} Dashboard Preview
+                      {companyName || 'Your Company'} Dashboard Preview
                     </span>
                   </div>
 
@@ -1337,12 +1353,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs pt-1">
               <div className="bg-navy-950/80 p-3 rounded-xl border border-navy-800">
                 <span className="text-[10px] font-bold text-navy-400 uppercase tracking-wider block">Connected Account Principal</span>
-                <span className="font-semibold text-white truncate block">{m365Account.userPrincipalName}</span>
+                <span className="font-semibold text-white truncate block">{m365Account.userPrincipalName || 'N/A'}</span>
               </div>
 
               <div className="bg-navy-950/80 p-3 rounded-xl border border-navy-800">
                 <span className="text-[10px] font-bold text-navy-400 uppercase tracking-wider block">Enterprise Azure Tenant</span>
-                <span className="font-semibold text-gold-300 truncate block">{m365Account.tenantName}</span>
+                <span className="font-semibold text-gold-300 truncate block">{m365Account.tenantName || 'Not Configured'}</span>
               </div>
 
               <div className="bg-navy-950/80 p-3 rounded-xl border border-navy-800">
@@ -1477,10 +1493,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
 
                 <div className="space-y-2 pt-2">
-                  <label htmlFor="settings-sync-contacts" className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
-                      id="settings-sync-contacts"
-                      name="syncContacts"
                       type="checkbox"
                       checked={syncContacts}
                       onChange={(e) => setSyncContacts(e.target.checked)}
@@ -1489,10 +1503,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <span className="font-bold text-slate-800">Two-Way Outlook Contacts Sync</span>
                   </label>
 
-                  <label htmlFor="settings-sync-calendar" className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
-                      id="settings-sync-calendar"
-                      name="syncCalendar"
                       type="checkbox"
                       checked={syncCalendar}
                       onChange={(e) => setSyncCalendar(e.target.checked)}
@@ -1501,10 +1513,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     <span className="font-bold text-slate-800">Teams & Outlook Calendar Meeting Sync</span>
                   </label>
 
-                  <label htmlFor="settings-auto-log-emails" className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
-                      id="settings-auto-log-emails"
-                      name="autoLogEmails"
                       type="checkbox"
                       checked={autoLogEmails}
                       onChange={(e) => setAutoLogEmails(e.target.checked)}
@@ -1591,10 +1601,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div className="space-y-2 pt-2">
-                <label htmlFor="settings-auto-score-email" className="flex items-center gap-2 cursor-pointer">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input
-                    id="settings-auto-score-email"
-                    name="autoScoreOnEmail"
                     type="checkbox"
                     checked={autoScoreOnEmail}
                     onChange={(e) => setAutoScoreOnEmail(e.target.checked)}
@@ -1603,10 +1611,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <span className="font-bold text-slate-800">Auto-Rescore on Outlook Email Reply</span>
                 </label>
 
-                <label htmlFor="settings-auto-score-meeting" className="flex items-center gap-2 cursor-pointer">
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input
-                    id="settings-auto-score-meeting"
-                    name="autoScoreOnMeeting"
                     type="checkbox"
                     checked={autoScoreOnMeeting}
                     onChange={(e) => setAutoScoreOnMeeting(e.target.checked)}
@@ -1743,12 +1749,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           {/* Rule Toggles Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             {/* Rule 1: Hot Lead Alerts */}
-            <label htmlFor="settings-notify-hot-lead" className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+            <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
               notifyHotLead ? 'bg-gold-50/40 border-gold-300 shadow-2xs' : 'bg-slate-50 border-slate-200 opacity-70'
             }`}>
               <input
-                id="settings-notify-hot-lead"
-                name="notifyHotLead"
                 type="checkbox"
                 checked={notifyHotLead}
                 onChange={(e) => setNotifyHotLead(e.target.checked)}
@@ -1766,12 +1770,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
 
             {/* Rule 2: Daily Digest */}
-            <label htmlFor="settings-notify-daily-digest" className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+            <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
               notifyDailyDigest ? 'bg-gold-50/40 border-gold-300 shadow-2xs' : 'bg-slate-50 border-slate-200 opacity-70'
             }`}>
               <input
-                id="settings-notify-daily-digest"
-                name="notifyDailyDigest"
                 type="checkbox"
                 checked={notifyDailyDigest}
                 onChange={(e) => setNotifyDailyDigest(e.target.checked)}
@@ -1789,12 +1791,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
 
             {/* Rule 3: Teams Meeting Reminders */}
-            <label htmlFor="settings-notify-teams-meeting" className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+            <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
               notifyTeamsMeeting ? 'bg-gold-50/40 border-gold-300 shadow-2xs' : 'bg-slate-50 border-slate-200 opacity-70'
             }`}>
               <input
-                id="settings-notify-teams-meeting"
-                name="notifyTeamsMeeting"
                 type="checkbox"
                 checked={notifyTeamsMeeting}
                 onChange={(e) => setNotifyTeamsMeeting(e.target.checked)}
@@ -1812,12 +1812,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
 
             {/* Rule 4: AI Follow-Up Suggestions */}
-            <label htmlFor="settings-notify-followup-prompt" className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+            <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
               notifyFollowupPrompt ? 'bg-gold-50/40 border-gold-300 shadow-2xs' : 'bg-slate-50 border-slate-200 opacity-70'
             }`}>
               <input
-                id="settings-notify-followup-prompt"
-                name="notifyFollowupPrompt"
                 type="checkbox"
                 checked={notifyFollowupPrompt}
                 onChange={(e) => setNotifyFollowupPrompt(e.target.checked)}
@@ -1835,12 +1833,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
 
             {/* Rule 5: Auto Lead Assignment */}
-            <label htmlFor="settings-auto-assign-leads" className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+            <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
               autoAssignLeads ? 'bg-gold-50/40 border-gold-300 shadow-2xs' : 'bg-slate-50 border-slate-200 opacity-70'
             }`}>
               <input
-                id="settings-auto-assign-leads"
-                name="autoAssignLeads"
                 type="checkbox"
                 checked={autoAssignLeads}
                 onChange={(e) => setAutoAssignLeads(e.target.checked)}
@@ -1858,12 +1854,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </label>
 
             {/* Rule 6: Stale Lead Inactivity Detection */}
-            <label htmlFor="settings-auto-stale-lead-alert" className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
+            <label className={`flex items-start gap-3 p-4 rounded-xl border transition-all cursor-pointer ${
               autoStaleLeadAlert ? 'bg-gold-50/40 border-gold-300 shadow-2xs' : 'bg-slate-50 border-slate-200 opacity-70'
             }`}>
               <input
-                id="settings-auto-stale-lead-alert"
-                name="autoStaleLeadAlert"
                 type="checkbox"
                 checked={autoStaleLeadAlert}
                 onChange={(e) => setAutoStaleLeadAlert(e.target.checked)}
@@ -2014,11 +2008,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             {/* Security Switches */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <label htmlFor="settings-mfa-required" className="flex items-center justify-between cursor-pointer">
+                <label className="flex items-center justify-between cursor-pointer">
                   <span className="font-extrabold text-navy-900">Enforce Multi-Factor Authentication (MFA)</span>
                   <input
-                    id="settings-mfa-required"
-                    name="mfaRequired"
                     type="checkbox"
                     checked={secSettings.mfaRequired}
                     onChange={(e) => {
@@ -2032,11 +2024,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <label htmlFor="settings-data-masking" className="flex items-center justify-between cursor-pointer">
+                <label className="flex items-center justify-between cursor-pointer">
                   <span className="font-extrabold text-navy-900">Sensitive Data Masking (PII Protection)</span>
                   <input
-                    id="settings-data-masking"
-                    name="dataMaskingEnabled"
                     type="checkbox"
                     checked={secSettings.dataMaskingEnabled}
                     onChange={(e) => {
@@ -2050,11 +2040,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <label htmlFor="settings-auto-lock" className="flex items-center justify-between cursor-pointer">
+                <label className="flex items-center justify-between cursor-pointer">
                   <span className="font-extrabold text-navy-900">Auto-Lock Inactive Sessions</span>
                   <input
-                    id="settings-auto-lock"
-                    name="autoLockOnInactivity"
                     type="checkbox"
                     checked={secSettings.autoLockOnInactivity}
                     onChange={(e) => {
@@ -2068,11 +2056,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <label htmlFor="settings-audit-logging" className="flex items-center justify-between cursor-pointer">
+                <label className="flex items-center justify-between cursor-pointer">
                   <span className="font-extrabold text-navy-900">Real-Time Security Audit Logging</span>
                   <input
-                    id="settings-audit-logging"
-                    name="auditLoggingEnabled"
                     type="checkbox"
                     checked={secSettings.auditLoggingEnabled}
                     onChange={(e) => {
@@ -2153,7 +2139,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       )}
 
-
       {/* Tab 6: System Data & Storage */}
       {activeTab === 'database' && (
         <div className="space-y-6">
@@ -2231,6 +2216,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1.5 transition-colors border border-slate-200 cursor-pointer"
               >
                 <RotateCcw className="h-4 w-4 text-slate-500" /> Reset CRM Storage
+              </button>
+
+              <button
+                onClick={() => {
+                  onRestoreSampleData();
+                  if (showToast) showToast('Sample data restored', 'info');
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs flex items-center gap-1.5 transition-colors border border-amber-200 cursor-pointer"
+              >
+                <RefreshCw className="h-4 w-4 text-amber-600" /> Restore Sample Data
               </button>
             </div>
           </div>
