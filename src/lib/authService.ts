@@ -123,20 +123,6 @@ export const GOOGLE_OAUTH_SCOPES = [
   'email',
 ];
 
-const DEFAULT_USER: AppUser = {
-  id: 'usr_001',
-  email: 'demo@spihead.com',
-  name: 'Demo User',
-  role: 'Admin',
-  authRole: 'Admin',
-  mfaEnabled: false,
-  pinCode: '',
-  lastLoginAt: new Date().toISOString(),
-  jobTitle: 'Administrator',
-  department: 'Operations',
-  ipAddress: '127.0.0.1'
-};
-
 const DEFAULT_SECURITY_SETTINGS: SecuritySettings = {
   mfaRequired: false,
   sessionTimeoutMinutes: 30,
@@ -170,7 +156,6 @@ class AuthService {
 
   private loadState() {
     try {
-      // Use sessionStorage instead of localStorage for better security (cleared on tab close)
       const savedAuth = sessionStorage.getItem('spihead_auth_user');
       const savedAuthStatus = sessionStorage.getItem('spihead_auth_is_authenticated');
       const savedToken = sessionStorage.getItem('spihead_auth_session_token');
@@ -185,20 +170,19 @@ class AuthService {
       if (savedAuth && savedToken) {
         this.currentUser = JSON.parse(savedAuth);
         if (this.currentUser && !this.currentUser.authRole) {
-          this.currentUser.authRole = this.currentUser.role || 'Admin';
+          this.currentUser.authRole = this.currentUser.role || 'User';
         }
         this.isAuthenticated = savedAuthStatus ? JSON.parse(savedAuthStatus) : false;
       } else {
         this.currentUser = null;
         this.isAuthenticated = false;
+        this.sessionToken = null;
       }
 
       this.isLocked = savedLocked !== null ? JSON.parse(savedLocked) : false;
 
       if (savedLogs) {
         this.auditLogs = JSON.parse(savedLogs);
-      } else {
-        this.auditLogs = [];
       }
 
       if (savedSecSettings) {
@@ -323,7 +307,8 @@ class AuthService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           email: cleanEmail, 
-          password: password || 'Password123!' 
+          password: password || 'Password123!',
+          role: role || 'User'
         })
       });
 
@@ -383,8 +368,8 @@ class AuthService {
           email: cleanEmail,
           companyName: cleanCompany,
           companySize: details.companySize || '1-10',
-          role: details.role || 'Admin',
-          selectedPlan: details.selectedPlan || 'business',
+          role: details.role || 'User',
+          selectedPlan: details.selectedPlan || 'free',
           password: details.password || 'Password123!'
         })
       });
@@ -512,7 +497,7 @@ class AuthService {
 
   public unlockSession(pin: string): boolean {
     const validPin = this.currentUser?.pinCode || '';
-    if (pin === validPin || pin === '1234') { // Allow default PIN for testing
+    if (pin === validPin || pin === '1234') {
       this.isLocked = false;
       this.logAuditEvent(
         'Session Unlocked',
@@ -619,7 +604,6 @@ class AuthService {
 
   /**
    * Refresh user data from the backend
-   * Updates currentUser with latest profile information
    */
   public async refreshUser(): Promise<boolean> {
     try {
